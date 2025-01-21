@@ -1,3 +1,3 @@
-const template = require('prismarine-template')
+const template = require('node-nethernet')
 
 template.helloWorld()

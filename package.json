@@ -1,7 +1,7 @@
 {
-  "name": "prismarine-template",
-  "version": "1.0.0",
-  "description": "A template repository to make it easy to create new prismarine repo",
+  "name": "nethernet",
+  "version": "0.0.1",
+  "description": "(WIP) Minecraft Bedrock nethernet protocol",
   "main": "index.js",
   "scripts": {
     "test": "mocha --reporter spec --exit",
@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/PrismarineJS/prismarine-template.git"
+    "url": "git+https://github.com/PrismarineJS/node-nethernet.git"
   },
   "keywords": [
     "prismarine",
@@ -20,11 +20,11 @@
   "author": "Romain Beaumont",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/PrismarineJS/prismarine-template/issues"
+    "url": "https://github.com/PrismarineJS/node-nethernet/issues"
   },
-  "homepage": "https://github.com/PrismarineJS/prismarine-template#readme",
+  "homepage": "https://github.com/PrismarineJS/node-nethernet#readme",
   "devDependencies": {
-    "prismarine-template": "file:.",
+    "node-nethernet": "file:.",
     "standard": "^17.0.0",
     "mocha": "^10.0.0"
   }
