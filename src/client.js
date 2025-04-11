@@ -69,12 +69,12 @@ class Client extends EventEmitter {
     })
 
     this.rtcConnection.onLocalDescription(desc => {
-      const pattern = /o=rtc \d+ 0 IN IP4 127\.0\.0\.1/;
-      
-      const newOLine = `o=- ${this.networkId} 2 IN IP4 127.0.0.1`;
-      
-      desc = desc.replace(pattern, newOLine);
-      
+      const pattern = /o=rtc \d+ 0 IN IP4 127\.0\.0\.1/
+
+      const newOLine = `o=- ${this.networkId} 2 IN IP4 127.0.0.1`
+
+      desc = desc.replace(pattern, newOLine)
+
       debug('client ICE local description changed', desc)
       this.signalHandler(
         new SignalStructure(SignalType.ConnectRequest, this.connectionId, desc, this.serverNetworkId)
@@ -87,10 +87,12 @@ class Client extends EventEmitter {
       if (state === 'closed' || state === 'disconnected' || state === 'failed') this.emit('disconnect', this.connectionId, 'disconnected')
     })
 
-    this.connection.setChannels(
-      this.rtcConnection.createDataChannel('ReliableDataChannel'),
-      this.rtcConnection.createDataChannel('UnreliableDataChannel')
-    )
+    setTimeout(() => {
+      this.connection.setChannels(
+        this.rtcConnection.createDataChannel('ReliableDataChannel'),
+        this.rtcConnection.createDataChannel('UnreliableDataChannel')
+      )
+    }, 500)
   }
 
   processPacket (buffer, rinfo) {
