@@ -1,6 +1,7 @@
 import EventEmitter from 'node:events'
 import { RemoteInfo, Socket } from 'node:dgram'
 import { PeerConnection, DataChannel, IceServer } from 'node-datachannel'
+import BinaryStream from '@jsprismarine/jsbinaryutils'
 
 declare module 'node-nethernet' {
 
@@ -41,6 +42,7 @@ declare module 'node-nethernet' {
   export interface ServerEvents {
     openConnection: (connection: Connection) => void;
     closeConnection: (connectionId: bigint, reason: string) => void;
+    encapsulated: (data: Buffer, connectionId: bigint) => void;
     close: (reason?: string) => void;
   }
 
@@ -68,6 +70,7 @@ declare module 'node-nethernet' {
   export interface ClientEvents {
     connected: (connection: Connection) => void;
     disconnect: (connectionId: bigint, reason: string) => void;
+    encapsulated: (data: Buffer, connectionId: bigint) => void;
     pong: (packet: ResponsePacket) => void;
   }  
 
@@ -119,6 +122,26 @@ declare module 'node-nethernet' {
     constructor(type: SignalType, connectionId: bigint, data: string, networkId?: bigint);
     toString(): string;
     static fromString(message: string): SignalStructure;
+  }
+
+  class ServerData extends BinaryStream {
+    version: number;
+    motd: string;
+    levelName: string;
+    gamemodeId: number;
+    playerCount: number;
+    playersMax: number;
+    isEditorWorld: boolean;
+    hardcore: boolean;
+    transportLayer: number;
+    
+    constructor (buffer: Buffer);
+
+    encode (): void
+    decode (): void
+    readString (): string
+    writeString (v: string): void
+    prependLength (): void
   }
 
 }
