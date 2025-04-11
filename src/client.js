@@ -190,11 +190,6 @@ class Client extends EventEmitter {
   async connect () {
     this.running = true
 
-    // wait until we receive a response from the server
-    while (this.responses.size === 0) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-    }
-
     await this.createOffer()
   }
 
