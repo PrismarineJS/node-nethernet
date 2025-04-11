@@ -1,5 +1,5 @@
 {
-  "name": "nethernet",
+  "name": "node-nethernet",
   "version": "0.0.1",
   "description": "(WIP) Minecraft Bedrock nethernet protocol",
   "main": "index.js",
