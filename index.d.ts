@@ -4,7 +4,7 @@ import { PeerConnection, DataChannel, IceServer } from 'node-datachannel'
 
 declare module 'node-nethernet' {
 
-  interface ResponsePacket {
+  export interface ResponsePacket {
     binary: number[]
     buffer: Buffer
     writeIndex: number
@@ -15,7 +15,7 @@ declare module 'node-nethernet' {
     data: Buffer
   }
 
-  export declare class Connection {
+  export class Connection {
     nethernet: Client | Server;
     address: bigint;
     rtcConnection: PeerConnection;
@@ -34,11 +34,11 @@ declare module 'node-nethernet' {
     close(): void;
   }
 
-  interface ServerOptions {
+  export interface ServerOptions {
     networkId?: bigint;
   }
 
-  declare interface ServerEvents {
+  export interface ServerEvents {
     openConnection: (connection: Connection) => void;
     closeConnection: (connectionId: bigint, reason: string) => void;
     close: (reason?: string) => void;
@@ -65,13 +65,13 @@ declare module 'node-nethernet' {
     on<K extends keyof ServerEvents>(event: K, listener: ServerEvents[K]): this;
   }
 
-  declare interface ClientEvents {
+  export interface ClientEvents {
     connected: (connection: Connection) => void;
     disconnect: (connectionId: bigint, reason: string) => void;
     pong: (packet: ResponsePacket) => void;
   }  
 
-  export declare class Client extends EventEmitter {
+  export class Client extends EventEmitter {
     serverNetworkId: bigint;
     networkId: bigint;
     connectionId: bigint;
@@ -103,14 +103,14 @@ declare module 'node-nethernet' {
     on<K extends keyof ClientEvents>(event: K, listener: ClientEvents[K]): this;
   }
 
-  export declare enum SignalType {
+  export enum SignalType {
     ConnectRequest = 'CONNECTREQUEST',
     ConnectResponse = 'CONNECTRESPONSE',
     CandidateAdd = 'CANDIDATEADD',
     ConnectError = 'CONNECTERROR'
   }
 
-  export declare class SignalStructure {
+  export class SignalStructure {
     type: SignalType;
     connectionId: bigint;
     data: string;
