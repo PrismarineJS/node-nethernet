@@ -79,9 +79,9 @@ async function kickTest () {
     server.setAdvertisement(Buffer.from([0]))
     const client = new Client(server.networkId)
 
-    server.on('openConnection', () => {
+    server.on('openConnection', (con) => {
       console.log('new connection')
-      client.close()
+      con.close()
     })
     server.listen()
     client.on('disconnect', packet => {

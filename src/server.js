@@ -1,6 +1,6 @@
 const dgram = require('node:dgram')
 const { EventEmitter } = require('node:events')
-const { RTCIceCandidate, RTCPeerConnection } = require('werift')
+const { PeerConnection } = require('node-datachannel')
 
 const { Connection } = require('./connection')
 const { SignalStructure, SignalType } = require('./signalling')
@@ -29,48 +29,47 @@ class Server extends EventEmitter {
     const conn = this.connections.get(signal.connectionId)
 
     if (conn) {
-      await conn.rtcConnection.addIceCandidate(new RTCIceCandidate({ candidate: signal.data }))
+      conn.rtcConnection.addRemoteCandidate(signal.data, '0')
     } else {
       debug('Connection not found', signal.connectionId)
     }
   }
 
   async handleOffer (signal, respond, credentials = []) {
-    const rtcConnection = new RTCPeerConnection({
-      iceServers: credentials
-    })
+    const rtcConnection = new PeerConnection('server', { iceServers: credentials })
 
     const connection = new Connection(this, signal.connectionId, rtcConnection)
 
     this.connections.set(signal.connectionId, connection)
 
-    rtcConnection.onicecandidate = (e) => {
-      if (e.candidate) {
-        respond(
-          new SignalStructure(SignalType.CandidateAdd, signal.connectionId, e.candidate.candidate, signal.networkId)
-        )
-      }
-    }
+    debug('Received offer', signal.connectionId)
 
-    rtcConnection.ondatachannel = ({ channel }) => {
-      if (channel.label === 'ReliableDataChannel') connection.setChannels(channel)
-      if (channel.label === 'UnreliableDataChannel') connection.setChannels(null, channel)
-    }
+    rtcConnection.onLocalDescription(description => {
+      debug('Local description', description)
+      respond(
+        new SignalStructure(SignalType.ConnectResponse, signal.connectionId, description, signal.networkId)
+      )
+    })
 
-    rtcConnection.onconnectionstatechange = () => {
-      const state = rtcConnection.connectionState
+    rtcConnection.onLocalCandidate(candidate => {
+      respond(
+        new SignalStructure(SignalType.CandidateAdd, signal.connectionId, candidate, signal.networkId)
+      )
+    })
+
+    rtcConnection.onDataChannel(channel => {
+      debug('Received data channel', channel.getLabel())
+      if (channel.getLabel() === 'ReliableDataChannel') connection.setChannels(channel)
+      if (channel.getLabel() === 'UnreliableDataChannel') connection.setChannels(null, channel)
+    })
+
+    rtcConnection.onStateChange(state => {
+      debug('Server RTC state changed', state)
       if (state === 'connected') this.emit('openConnection', connection)
       if (state === 'closed' || state === 'disconnected' || state === 'failed') this.emit('closeConnection', signal.connectionId, 'disconnected')
-    }
+    })
 
-    await rtcConnection.setRemoteDescription({ type: 'offer', sdp: signal.data })
-
-    const answer = await rtcConnection.createAnswer()
-    await rtcConnection.setLocalDescription(answer)
-
-    respond(
-      new SignalStructure(SignalType.ConnectResponse, signal.connectionId, answer.sdp, signal.networkId)
-    )
+    rtcConnection.setRemoteDescription(signal.data, 'offer')
   }
 
   processPacket (buffer, rinfo) {
@@ -183,6 +182,7 @@ class Server extends EventEmitter {
   }
 
   close (reason) {
+    debug('Closing server', reason)
     for (const conn of this.connections.values()) {
       conn.close()
     }

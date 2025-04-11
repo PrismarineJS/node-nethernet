@@ -17,8 +17,12 @@ class Connection {
   setChannels (reliable, unreliable) {
     if (reliable) {
       this.reliable = reliable
-      this.reliable.onmessage = (msg) => this.handleMessage(msg.data)
-      this.reliable.onopen = () => this.flushQueue()
+      this.reliable.onMessage((msg) => {
+        this.handleMessage(msg)
+      })
+      this.reliable.onOpen(() => {
+        this.flushQueue()
+      })
     }
     if (unreliable) {
       this.unreliable = unreliable
@@ -26,9 +30,10 @@ class Connection {
   }
 
   handleMessage (data) {
-    if (typeof data === 'string') {
+    if (typeof data === 'string' || data instanceof ArrayBuffer) {
       data = Buffer.from(data)
     }
+
     if (data.length < 2) {
       throw new Error('Unexpected EOF')
     }
@@ -81,7 +86,7 @@ class Connection {
       const frag = data.subarray(i, end)
       const message = Buffer.concat([Buffer.from([segments]), frag])
       debug('Sending fragment', segments)
-      this.reliable.send(message)
+      this.reliable.sendMessageBinary(message)
       n += frag.length
     }
 

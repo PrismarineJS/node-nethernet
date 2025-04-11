@@ -1,7 +1,5 @@
 const dgram = require('node:dgram')
-const { write } = require('sdp-transform')
 const { EventEmitter } = require('node:events')
-const { RTCIceCandidate, RTCPeerConnection } = require('werift')
 
 const { Connection } = require('./connection')
 const { SignalType, SignalStructure } = require('./signalling')
@@ -14,6 +12,9 @@ const { ResponsePacket } = require('./discovery/packets/ResponsePacket')
 const { decrypt, encrypt, calculateChecksum } = require('./discovery/crypto')
 
 const { getRandomUint64 } = require('./util')
+const { PeerConnection } = require('node-datachannel')
+
+const debug = require('debug')('minecraft-protocol')
 
 const PORT = 7551
 const BROADCAST_ADDRESS = getBroadcastAddress()
@@ -49,102 +50,41 @@ class Client extends EventEmitter {
   }
 
   async handleCandidate (signal) {
-    await this.rtcConnection.addIceCandidate(new RTCIceCandidate({ candidate: signal.data }))
+    this.rtcConnection.addRemoteCandidate(signal.data, '0')
   }
 
   async handleAnswer (signal) {
-    await this.rtcConnection.setRemoteDescription({ type: 'answer', sdp: signal.data })
+    this.rtcConnection.setRemoteDescription(signal.data, 'answer')
   }
 
   async createOffer () {
-    this.rtcConnection = new RTCPeerConnection({
-      iceServers: this.credentials
-    })
+    this.rtcConnection = new PeerConnection('client', { iceServers: this.credentials })
 
     this.connection = new Connection(this, this.connectionId, this.rtcConnection)
 
-    const candidates = []
+    this.rtcConnection.onLocalCandidate(candidate => {
+      this.signalHandler(
+        new SignalStructure(SignalType.CandidateAdd, this.connectionId, candidate, this.serverNetworkId)
+      )
+    })
 
-    this.rtcConnection.onicecandidate = (e) => {
-      if (e.candidate) {
-        candidates.push(e.candidate.candidate)
-      }
-    }
+    this.rtcConnection.onLocalDescription(desc => {
+      debug('client ICE local description changed', desc)
+      this.signalHandler(
+        new SignalStructure(SignalType.ConnectRequest, this.connectionId, desc, this.serverNetworkId)
+      )
+    })
+
+    this.rtcConnection.onStateChange(state => {
+      debug('Client state changed', state)
+      if (state === 'connected') this.emit('connected', this.connection)
+      if (state === 'closed' || state === 'disconnected' || state === 'failed') this.emit('disconnect', this.connectionId, 'disconnected')
+    })
 
     this.connection.setChannels(
       this.rtcConnection.createDataChannel('ReliableDataChannel'),
       this.rtcConnection.createDataChannel('UnreliableDataChannel')
     )
-
-    this.rtcConnection.onconnectionstatechange = () => {
-      const state = this.rtcConnection.connectionState
-      if (state === 'connected') this.emit('connected', this.connection)
-      if (state === 'closed' || state === 'disconnected' || state === 'failed') this.emit('disconnect', this.connectionId, 'disconnected')
-    }
-
-    await this.rtcConnection.createOffer()
-
-    const ice = this.rtcConnection.iceTransports[0]
-    const dtls = this.rtcConnection.dtlsTransports[0]
-
-    if (!ice || !dtls) {
-      throw new Error('Failed to create transports')
-    }
-
-    const iceParams = ice.iceGather.localParameters
-    const dtlsParams = dtls.localParameters
-
-    if (dtlsParams.fingerprints.length === 0) {
-      throw new Error('local DTLS parameters has no fingerprints')
-    }
-
-    const desc = write({
-      version: 0,
-      origin: {
-        username: '-',
-        sessionId: getRandomUint64().toString(),
-        sessionVersion: 2,
-        netType: 'IN',
-        ipVer: 4,
-        address: '127.0.0.1'
-      },
-      name: '-',
-      timing: { start: 0, stop: 0 },
-      groups: [{ type: 'BUNDLE', mids: '0' }],
-      extmapAllowMixed: 'extmap-allow-mixed',
-      msidSemantic: { semantic: '', token: 'WMS' },
-      media: [
-        {
-          rtp: [],
-          fmtp: [],
-          type: 'application',
-          port: 9,
-          protocol: 'UDP/DTLS/SCTP',
-          payloads: 'webrtc-datachannel',
-          connection: { ip: '0.0.0.0', version: 4 },
-          iceUfrag: iceParams.usernameFragment,
-          icePwd: iceParams.password,
-          iceOptions: 'trickle',
-          fingerprint: { type: dtlsParams.fingerprints[0].algorithm, hash: dtlsParams.fingerprints[0].value },
-          setup: 'active',
-          mid: '0',
-          sctpPort: 5000,
-          maxMessageSize: 65536
-        }
-      ]
-    })
-
-    await this.rtcConnection.setLocalDescription({ type: 'offer', sdp: desc })
-
-    this.signalHandler(
-      new SignalStructure(SignalType.ConnectRequest, this.connectionId, desc, this.serverNetworkId)
-    )
-
-    for (const candidate of candidates) {
-      this.signalHandler(
-        new SignalStructure(SignalType.CandidateAdd, this.connectionId, candidate, this.serverNetworkId)
-      )
-    }
   }
 
   processPacket (buffer, rinfo) {
@@ -160,6 +100,8 @@ class Client extends EventEmitter {
     }
 
     const packetType = decryptedData.readUInt16LE(2)
+
+    debug('Received packet', packetType)
 
     switch (packetType) {
       case PACKET_TYPE.DISCOVERY_REQUEST:
@@ -242,6 +184,11 @@ class Client extends EventEmitter {
   async connect () {
     this.running = true
 
+    // wait until we receive a response from the server
+    while (this.responses.size === 0) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
     await this.createOffer()
   }
 
@@ -254,6 +201,7 @@ class Client extends EventEmitter {
   }
 
   close (reason) {
+    debug('Closing client', reason)
     if (!this.running) return
     clearInterval(this.pingInterval)
     this.connection?.close()

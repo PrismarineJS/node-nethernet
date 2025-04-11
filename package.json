@@ -31,7 +31,6 @@
   },
   "dependencies": {
     "@jsprismarine/jsbinaryutils": "^5.5.3",
-    "sdp-transform": "^2.15.0",
-    "werift": "^0.21.12"
+    "node-datachannel": "^0.26.0"
   }
 }

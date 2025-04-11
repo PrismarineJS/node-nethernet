@@ -1,6 +1,6 @@
 import EventEmitter from 'node:events'
 import { RemoteInfo, Socket } from 'node:dgram'
-import { RTCPeerConnection, RTCDataChannel, RTCIceServer } from 'werift'
+import { PeerConnection, DataChannel, IceServer } from 'node-datachannel'
 
 declare module 'node-nethernet' {
 
@@ -18,15 +18,15 @@ declare module 'node-nethernet' {
   export declare class Connection {
     nethernet: Client | Server;
     address: bigint;
-    rtcConnection: RTCPeerConnection;
-    reliable: RTCDataChannel | null;
-    unreliable: RTCDataChannel | null;
+    rtcConnection: PeerConnection;
+    reliable: DataChannel | null;
+    unreliable: DataChannel | null;
     promisedSegments: number;
     buf: Buffer;
-    sendQueue: Buffer[];
+    sendQueue: Buffer[];      
 
-    constructor(nethernet: Client | Server, address: bigint, rtcConnection: RTCPeerConnection);
-    setChannels(reliable: RTCDataChannel | null, unreliable: RTCDataChannel | null): void;
+    constructor(nethernet: Client | Server, address: bigint, rtcConnection: PeerConnection);
+    setChannels(reliable: DataChannel | null, unreliable: DataChannel | null): void;
     handleMessage(data: Buffer | string): void;
     send(data: Buffer | string): number;
     sendNow(data: Buffer): number;
@@ -53,7 +53,7 @@ declare module 'node-nethernet' {
 
     constructor(options?: ServerOptions);
     handleCandidate(signal: SignalStructure): Promise<void>;
-    handleOffer(signal: SignalStructure, respond: (signal: SignalStructure) => void, credentials?: RTCIceServer[]): Promise<void>;
+    handleOffer(signal: SignalStructure, respond: (signal: SignalStructure) => void, credentials?: (string | IceServer)[]): Promise<void>;
     processPacket(buffer: Buffer, rinfo: RemoteInfo): void;
     setAdvertisement(buffer: Buffer): void;
     handleRequest(rinfo: RemoteInfo): void;
@@ -78,10 +78,10 @@ declare module 'node-nethernet' {
     socket: Socket;
     responses: Map<bigint, Buffer>;
     addresses: Map<bigint, RemoteInfo>;
-    credentials: RTCIceServer[];
+    credentials: (string | IceServer)[];
     signalHandler: (signal: SignalStructure) => void;
     connection?: Connection;
-    rtcConnection?: RTCPeerConnection;
+    rtcConnection?: PeerConnection;
     pingInterval?: NodeJS.Timeout;
     running: boolean;
   
