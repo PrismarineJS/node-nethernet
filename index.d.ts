@@ -88,7 +88,7 @@ declare module 'node-nethernet' {
     pingInterval?: NodeJS.Timeout;
     running: boolean;
   
-    constructor(networkId: bigint);
+    constructor(networkId: bigint, targetAddress?: string);
     handleCandidate(signal: SignalStructure): Promise<void>;
     handleAnswer(signal: SignalStructure): Promise<void>;
     createOffer(): Promise<void>;

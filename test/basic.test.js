@@ -7,8 +7,7 @@ async function pingTest () {
     const message = 'FMCPE;JSRakNet - JS powered RakNet;408;1.16.20;0;5;0;JSRakNet;Creative;'
     const server = new Server()
     server.setAdvertisement(Buffer.from(message))
-    const client = new Client({ networkId: server.networkId })
-
+    const client = new Client(server.networkId, '127.0.0.1')
     client.once('pong', (packet) => {
       console.log('PONG data', packet)
       const msg = packet.data?.toString()
@@ -31,7 +30,7 @@ async function connectTest () {
     const message = 'FMCPE;JSRakNet - JS powered RakNet;408;1.16.20;0;5;0;JSRakNet;Creative;'
     const server = new Server()
     server.setAdvertisement(Buffer.from(message))
-    const client = new Client(server.networkId)
+    const client = new Client(server.networkId, '127.0.0.1')
 
     server.listen()
     let lastC = 0
@@ -77,8 +76,7 @@ async function kickTest () {
   return new Promise((resolve, reject) => {
     const server = new Server()
     server.setAdvertisement(Buffer.from([0]))
-    const client = new Client(server.networkId)
-
+    const client = new Client(server.networkId, '127.0.0.1')
     server.on('openConnection', (con) => {
       console.log('new connection')
       con.close()

@@ -20,10 +20,12 @@ const PORT = 7551
 const BROADCAST_ADDRESS = getBroadcastAddress()
 
 class Client extends EventEmitter {
-  constructor (networkId) {
+  constructor (networkId, targetAddress = BROADCAST_ADDRESS) {
     super()
 
     this.serverNetworkId = networkId
+
+    this.targetAddress = targetAddress
 
     this.networkId = getRandomUint64()
 
@@ -165,7 +167,7 @@ class Client extends EventEmitter {
 
     const packetToSend = Buffer.concat([calculateChecksum(buf), encrypt(buf)])
 
-    this.socket.send(packetToSend, PORT, BROADCAST_ADDRESS)
+    this.socket.send(packetToSend, PORT, this.targetAddress)
   }
 
   sendDiscoveryMessage (signal) {
