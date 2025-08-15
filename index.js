@@ -1,6 +1,5 @@
 const { Client } = require('./src/client')
 const { Server } = require('./src/server')
-const { ServerData } = require('./src/discovery/ServerData')
 const { SignalStructure } = require('./src/signalling')
 
 const SignalType = {
@@ -13,7 +12,6 @@ const SignalType = {
 module.exports = {
   Client,
   Server,
-  ServerData,
   SignalType,
   SignalStructure
 }

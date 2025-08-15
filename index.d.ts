@@ -124,24 +124,4 @@ declare module 'node-nethernet' {
     static fromString(message: string): SignalStructure;
   }
 
-  class ServerData extends BinaryStream {
-    version: number;
-    motd: string;
-    levelName: string;
-    gamemodeId: number;
-    playerCount: number;
-    playersMax: number;
-    isEditorWorld: boolean;
-    hardcore: boolean;
-    transportLayer: number;
-    
-    constructor (buffer: Buffer);
-
-    encode (): void
-    decode (): void
-    readString (): string
-    writeString (v: string): void
-    prependLength (): void
-  }
-
 }
