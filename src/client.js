@@ -4,7 +4,6 @@ const { EventEmitter } = require('node:events')
 const { Connection } = require('./connection')
 const { SignalType, SignalStructure } = require('./signalling')
 
-const { getBroadcastAddress } = require('./net')
 const { PACKET_TYPE } = require('./discovery/packets/Packet')
 const { RequestPacket } = require('./discovery/packets/RequestPacket')
 const { MessagePacket } = require('./discovery/packets/MessagePacket')
@@ -17,7 +16,7 @@ const { PeerConnection } = require('node-datachannel')
 const debug = require('debug')('minecraft-protocol')
 
 const PORT = 7551
-const BROADCAST_ADDRESS = getBroadcastAddress()
+const BROADCAST_ADDRESS = '255.255.255.255'
 
 class Client extends EventEmitter {
   constructor (networkId, targetAddress = BROADCAST_ADDRESS) {
@@ -35,6 +34,10 @@ class Client extends EventEmitter {
 
     this.socket.on('message', (buffer, rinfo) => {
       this.processPacket(buffer, rinfo)
+    })
+
+    this.socket.bind(() => {
+      this.socket.setBroadcast(true)
     })
 
     this.responses = new Map()
