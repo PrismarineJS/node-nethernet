@@ -4,14 +4,9 @@ const { EventEmitter } = require('node:events')
 const { Connection } = require('./connection')
 const { SignalType, SignalStructure } = require('./signalling')
 
-const { PACKET_TYPE } = require('./discovery/packets/Packet')
-const { RequestPacket } = require('./discovery/packets/RequestPacket')
-const { MessagePacket } = require('./discovery/packets/MessagePacket')
-const { ResponsePacket } = require('./discovery/packets/ResponsePacket')
-const { decrypt, encrypt, calculateChecksum } = require('./discovery/crypto')
-
-const { getRandomUint64 } = require('./util')
+const { getRandomUint64, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
 const { PeerConnection } = require('node-datachannel')
+const { PACKET_TYPE, createSerializer, createDeserializer } = require('./serializer')
 
 const debug = require('debug')('minecraft-protocol')
 
@@ -19,12 +14,12 @@ const PORT = 7551
 const BROADCAST_ADDRESS = '255.255.255.255'
 
 class Client extends EventEmitter {
-  constructor (networkId, targetAddress = BROADCAST_ADDRESS) {
+  constructor (networkId, broadcastAddress = BROADCAST_ADDRESS) {
     super()
 
     this.serverNetworkId = networkId
 
-    this.targetAddress = targetAddress
+    this.broadcastAddress = broadcastAddress
 
     this.networkId = getRandomUint64()
 
@@ -39,6 +34,9 @@ class Client extends EventEmitter {
     this.socket.bind(() => {
       this.socket.setBroadcast(true)
     })
+
+    this.serializer = createSerializer()
+    this.deserializer = createDeserializer()
 
     this.responses = new Map()
     this.addresses = new Map()
@@ -101,29 +99,17 @@ class Client extends EventEmitter {
   }
 
   processPacket (buffer, rinfo) {
-    if (buffer.length < 32) {
-      throw new Error('Packet is too short')
-    }
+    const parsedPacket = processSecurePacket(buffer, this.deserializer)
+    debug('Received packet', parsedPacket)
 
-    const decryptedData = decrypt(buffer.slice(32))
-    const checksum = calculateChecksum(decryptedData)
-
-    if (Buffer.compare(buffer.slice(0, 32), checksum) !== 0) {
-      throw new Error('Checksum mismatch')
-    }
-
-    const packetType = decryptedData.readUInt16LE(2)
-
-    debug('Received packet', packetType)
-
-    switch (packetType) {
-      case PACKET_TYPE.DISCOVERY_REQUEST:
+    switch (parsedPacket.name) {
+      case 'discovery_request':
         break
-      case PACKET_TYPE.DISCOVERY_RESPONSE:
-        this.handleResponse(new ResponsePacket(decryptedData).decode(), rinfo)
+      case 'discovery_response':
+        this.handleResponse(parsedPacket, rinfo)
         break
-      case PACKET_TYPE.DISCOVERY_MESSAGE:
-        this.handleMessage(new MessagePacket(decryptedData).decode())
+      case 'discovery_message':
+        this.handleMessage(parsedPacket)
         break
       default:
         throw new Error('Unknown packet type')
@@ -131,19 +117,22 @@ class Client extends EventEmitter {
   }
 
   handleResponse (packet, rinfo) {
-    this.addresses.set(packet.senderId, rinfo)
-    this.responses.set(packet.senderId, packet.data)
-    this.emit('pong', packet)
+    const senderId = BigInt(packet.params.sender_id)
+    this.addresses.set(senderId, rinfo)
+    this.responses.set(senderId, packet.params)
+    this.emit('pong', packet.params)
   }
 
   handleMessage (packet) {
-    if (packet.data === 'Ping') {
+    const data = packet.params.data
+
+    if (data === 'Ping') {
       return
     }
 
-    const signal = SignalStructure.fromString(packet.data)
+    const signal = SignalStructure.fromString(data)
 
-    signal.networkId = packet.senderId
+    signal.networkId = packet.params.sender_id
 
     this.handleSignal(signal)
   }
@@ -160,37 +149,28 @@ class Client extends EventEmitter {
   }
 
   sendDiscoveryRequest () {
-    const requestPacket = new RequestPacket()
+    const packetData = createPacketData('discovery_request', PACKET_TYPE.DISCOVERY_REQUEST, this.networkId)
 
-    requestPacket.senderId = this.networkId
+    const packetToSend = prepareSecurePacket(this.serializer, packetData)
 
-    requestPacket.encode()
-
-    const buf = requestPacket.getBuffer()
-
-    const packetToSend = Buffer.concat([calculateChecksum(buf), encrypt(buf)])
-
-    this.socket.send(packetToSend, PORT, this.targetAddress)
+    this.socket.send(packetToSend, PORT, this.broadcastAddress)
   }
 
   sendDiscoveryMessage (signal) {
-    const rinfo = this.addresses.get(signal.networkId)
+    const rinfo = this.addresses.get(BigInt(signal.networkId))
 
     if (!rinfo) {
       return
     }
 
-    const messagePacket = new MessagePacket()
+    const packetData = createPacketData('discovery_message', PACKET_TYPE.DISCOVERY_MESSAGE, this.networkId,
+      {
+        recipient_id: BigInt(signal.networkId),
+        data: signal.toString()
+      }
+    )
 
-    messagePacket.senderId = this.networkId
-    messagePacket.recipientId = BigInt(signal.networkId)
-    messagePacket.data = signal.toString()
-    messagePacket.encode()
-
-    const buf = messagePacket.getBuffer()
-
-    const packetToSend = Buffer.concat([calculateChecksum(buf), encrypt(buf)])
-
+    const packetToSend = prepareSecurePacket(this.serializer, packetData)
     this.socket.send(packetToSend, rinfo.port, rinfo.address)
   }
 
@@ -205,6 +185,8 @@ class Client extends EventEmitter {
   }
 
   ping () {
+    this.running = true
+
     this.sendDiscoveryRequest()
   }
 

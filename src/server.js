@@ -5,12 +5,9 @@ const { PeerConnection } = require('node-datachannel')
 const { Connection } = require('./connection')
 const { SignalStructure, SignalType } = require('./signalling')
 
-const { PACKET_TYPE } = require('./discovery/packets/Packet')
-const { MessagePacket } = require('./discovery/packets/MessagePacket')
-const { ResponsePacket } = require('./discovery/packets/ResponsePacket')
-const { decrypt, encrypt, calculateChecksum } = require('./discovery/crypto')
+const { PACKET_TYPE, createSerializer, createDeserializer } = require('./serializer')
 
-const { getRandomUint64 } = require('./util')
+const { getRandomUint64, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
 
 const debug = require('debug')('minecraft-protocol')
 
@@ -23,6 +20,9 @@ class Server extends EventEmitter {
     this.networkId = options.networkId ?? getRandomUint64()
 
     this.connections = new Map()
+
+    this.serializer = createSerializer()
+    this.deserializer = createDeserializer()
   }
 
   async handleCandidate (signal) {
@@ -73,28 +73,17 @@ class Server extends EventEmitter {
   }
 
   processPacket (buffer, rinfo) {
-    if (buffer.length < 32) {
-      throw new Error('Packet is too short')
-    }
+    const parsedPacket = processSecurePacket(buffer, this.deserializer)
+    debug('Received packet', parsedPacket)
 
-    const decryptedData = decrypt(buffer.slice(32))
-
-    const checksum = calculateChecksum(decryptedData)
-
-    if (Buffer.compare(buffer.slice(0, 32), checksum) !== 0) {
-      throw new Error('Checksum mismatch')
-    }
-
-    const packetType = decryptedData.readUInt16LE(2)
-
-    switch (packetType) {
-      case PACKET_TYPE.DISCOVERY_REQUEST:
+    switch (parsedPacket.name) {
+      case 'discovery_request':
         this.handleRequest(rinfo)
         break
-      case PACKET_TYPE.DISCOVERY_RESPONSE:
+      case 'discovery_response':
         break
-      case PACKET_TYPE.DISCOVERY_MESSAGE:
-        this.handleMessage(new MessagePacket(decryptedData).decode(), rinfo)
+      case 'discovery_message':
+        this.handleMessage(parsedPacket, rinfo)
         break
       default:
         throw new Error('Unknown packet type')
@@ -112,43 +101,37 @@ class Server extends EventEmitter {
       return new Error('Advertisement data not set yet')
     }
 
-    const responsePacket = new ResponsePacket()
+    const packetData = createPacketData('discovery_response', PACKET_TYPE.DISCOVERY_RESPONSE, this.networkId,
+      {
+        data: data.toString('hex')
+      }
+    )
 
-    responsePacket.senderId = this.networkId
-    responsePacket.data = data
-
-    responsePacket.encode()
-
-    const buf = responsePacket.getBuffer()
-
-    const packetToSend = Buffer.concat([calculateChecksum(buf), encrypt(buf)])
-
+    const packetToSend = prepareSecurePacket(this.serializer, packetData)
     this.socket.send(packetToSend, rinfo.port, rinfo.address)
   }
 
   handleMessage (packet, rinfo) {
-    if (packet.data === 'Ping') {
+    const data = packet.params.data
+    if (data === 'Ping') {
       return
     }
 
     const respond = (signal) => {
-      const messagePacket = new MessagePacket()
+      const packetData = createPacketData('discovery_message', PACKET_TYPE.DISCOVERY_MESSAGE, this.networkId,
+        {
+          recipient_id: BigInt(signal.networkId),
+          data: signal.toString()
+        }
+      )
 
-      messagePacket.senderId = this.networkId
-      messagePacket.recipientId = signal.networkId
-      messagePacket.data = signal.toString()
-      messagePacket.encode()
-
-      const buf = messagePacket.getBuffer()
-
-      const packetToSend = Buffer.concat([calculateChecksum(buf), encrypt(buf)])
-
+      const packetToSend = prepareSecurePacket(this.serializer, packetData)
       this.socket.send(packetToSend, rinfo.port, rinfo.address)
     }
 
-    const signal = SignalStructure.fromString(packet.data)
+    const signal = SignalStructure.fromString(data)
 
-    signal.networkId = packet.senderId
+    signal.networkId = packet.params.sender_id
 
     switch (signal.type) {
       case SignalType.ConnectRequest:

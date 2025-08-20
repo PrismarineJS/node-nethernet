@@ -30,7 +30,7 @@
     "standard": "^17.0.0"
   },
   "dependencies": {
-    "@jsprismarine/jsbinaryutils": "^5.5.3",
-    "node-datachannel": "^0.26.0"
+    "node-datachannel": "^0.26.0",
+    "protodef": "^1.19.0"
   }
 }

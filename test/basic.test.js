@@ -10,7 +10,7 @@ async function pingTest () {
     const client = new Client(server.networkId, '127.0.0.1')
     client.once('pong', (packet) => {
       console.log('PONG data', packet)
-      const msg = packet.data?.toString()
+      const msg = Buffer.from(packet.data, 'hex').toString()
       if (!msg || msg !== message) throw Error(`PONG mismatch ${msg} != ${message}`)
       console.log('OK')
       client.close()
