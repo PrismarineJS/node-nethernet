@@ -12,6 +12,7 @@ const debug = require('debug')('nethernet')
 
 const PORT = 7551
 const BROADCAST_ADDRESS = '255.255.255.255'
+const SOCKET_CLOSE_TIMEOUT_MS = 100
 
 class Client extends EventEmitter {
   constructor (networkId, broadcastAddress = BROADCAST_ADDRESS) {

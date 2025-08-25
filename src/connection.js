@@ -1,4 +1,4 @@
-const debug = require('debug')('netherent')
+const debug = require('debug')('nethernet')
 
 const MAX_MESSAGE_SIZE = 10_000
 
