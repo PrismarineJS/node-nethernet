@@ -1,6 +1,6 @@
 const crypto = require('node:crypto')
 
-const appIdBuffer = Buffer.allocUnsafe(8)
+const appIdBuffer = Buffer.alloc(8)
 appIdBuffer.writeBigUInt64LE(BigInt(0xdeadbeef))
 
 const AES_KEY = crypto.createHash('sha256')

@@ -2,19 +2,6 @@
 const [Read, Write, SizeOf] = [{}, {}, {}]
 
 /**
- * Skip type - doesn't read/write anything, just passes through the value
- */
-Read.skip = ['native', (buffer, offset) => {
-  return { value: undefined, size: 0 }
-}]
-Write.skip = ['native', (value, buffer, offset) => {
-  return offset
-}]
-SizeOf.skip = ['native', (value) => {
-  return 0
-}]
-
-/**
  * Encapsulated data with length prefix
  */
 Read.encapsulated = ['parametrizable', (compiler, { lengthType, type }) => {

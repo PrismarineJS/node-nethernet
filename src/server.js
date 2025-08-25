@@ -98,7 +98,7 @@ class Server extends EventEmitter {
     const data = this.advertisement
 
     if (!data) {
-      return new Error('Advertisement data not set yet')
+      throw new Error('Advertisement data not set yet')
     }
 
     const packetData = createPacketData('discovery_response', PACKET_TYPE.DISCOVERY_RESPONSE, this.networkId,
@@ -158,10 +158,6 @@ class Server extends EventEmitter {
         resolve(true)
       })
     })
-  }
-
-  send (buffer) {
-    this.connection.send(buffer)
   }
 
   close (reason) {
