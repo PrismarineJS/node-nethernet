@@ -9,7 +9,7 @@ const { PACKET_TYPE, createSerializer, createDeserializer } = require('./seriali
 
 const { getRandomUint64, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
 
-const debug = require('debug')('minecraft-protocol')
+const debug = require('debug')('nethernet')
 
 class Server extends EventEmitter {
   constructor (options = {}) {

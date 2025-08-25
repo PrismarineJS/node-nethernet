@@ -1,4 +1,4 @@
-const debug = require('debug')('minecraft-protocol')
+const debug = require('debug')('netherent')
 
 const MAX_MESSAGE_SIZE = 10_000
 

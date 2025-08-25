@@ -8,7 +8,7 @@ const { getRandomUint64, createPacketData, prepareSecurePacket, processSecurePac
 const { PeerConnection } = require('node-datachannel')
 const { PACKET_TYPE, createSerializer, createDeserializer } = require('./serializer')
 
-const debug = require('debug')('minecraft-protocol')
+const debug = require('debug')('nethernet')
 
 const PORT = 7551
 const BROADCAST_ADDRESS = '255.255.255.255'

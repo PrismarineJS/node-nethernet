@@ -1,7 +1,6 @@
 import EventEmitter from 'node:events'
 import { RemoteInfo, Socket } from 'node:dgram'
 import { PeerConnection, DataChannel, IceServer } from 'node-datachannel'
-import BinaryStream from '@jsprismarine/jsbinaryutils'
 
 declare module 'node-nethernet' {
 
@@ -23,12 +22,12 @@ declare module 'node-nethernet' {
     reliable: DataChannel | null;
     unreliable: DataChannel | null;
     promisedSegments: number;
-    buf: Buffer;
+    buf: Buffer | null;
     sendQueue: Buffer[];      
 
     constructor(nethernet: Client | Server, address: bigint, rtcConnection: PeerConnection);
-    setChannels(reliable: DataChannel | null, unreliable: DataChannel | null): void;
-    handleMessage(data: Buffer | string): void;
+    setChannels(reliable?: DataChannel | null, unreliable?: DataChannel | null): void;
+    handleMessage(data: Buffer | string | ArrayBuffer): void;
     send(data: Buffer | string): number;
     sendNow(data: Buffer): number;
     flushQueue(): void;
@@ -49,9 +48,11 @@ declare module 'node-nethernet' {
   export class Server extends EventEmitter {
     options: ServerOptions;
     networkId: bigint;
-    connections: Map<string, Connection>;
+    connections: Map<bigint, Connection>;
     advertisement?: Buffer;
     socket: Socket;
+    serializer: any;
+    deserializer: any;
 
     constructor(options?: ServerOptions);
     handleCandidate(signal: SignalStructure): Promise<void>;
@@ -61,25 +62,28 @@ declare module 'node-nethernet' {
     handleRequest(rinfo: RemoteInfo): void;
     handleMessage(packet: any, rinfo: RemoteInfo): void;
     listen(): Promise<void>;
-    send(buffer: Buffer): void;
     close(reason?: string): void;
 
     on<K extends keyof ServerEvents>(event: K, listener: ServerEvents[K]): this;
+    emit<K extends keyof ServerEvents>(event: K, ...args: Parameters<ServerEvents[K]>): boolean;
   }
 
   export interface ClientEvents {
     connected: (connection: Connection) => void;
     disconnect: (connectionId: bigint, reason: string) => void;
     encapsulated: (data: Buffer, connectionId: bigint) => void;
-    pong: (packet: ResponsePacket) => void;
+    pong: (packet: any) => void;
   }  
 
   export class Client extends EventEmitter {
     serverNetworkId: bigint;
+    broadcastAddress: string;
     networkId: bigint;
     connectionId: bigint;
     socket: Socket;
-    responses: Map<bigint, Buffer>;
+    serializer: any;
+    deserializer: any;
+    responses: Map<bigint, any>;
     addresses: Map<bigint, RemoteInfo>;
     credentials: (string | IceServer)[];
     signalHandler: (signal: SignalStructure) => void;
@@ -88,7 +92,7 @@ declare module 'node-nethernet' {
     pingInterval?: NodeJS.Timeout;
     running: boolean;
   
-    constructor(networkId: bigint, targetAddress?: string);
+    constructor(networkId: bigint, broadcastAddress?: string);
     handleCandidate(signal: SignalStructure): Promise<void>;
     handleAnswer(signal: SignalStructure): Promise<void>;
     createOffer(): Promise<void>;
@@ -104,6 +108,7 @@ declare module 'node-nethernet' {
     close(reason?: string): void;
 
     on<K extends keyof ClientEvents>(event: K, listener: ClientEvents[K]): this;
+    emit<K extends keyof ClientEvents>(event: K, ...args: Parameters<ClientEvents[K]>): boolean;
   }
 
   export enum SignalType {
