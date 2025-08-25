@@ -195,7 +195,7 @@ class Client extends EventEmitter {
     if (!this.running) return
     clearInterval(this.pingInterval)
     this.connection?.close()
-    setTimeout(() => this.socket.close(), 100)
+    setTimeout(() => this.socket.close(), SOCKET_CLOSE_TIMEOUT_MS)
     this.connection = null
     this.running = false
     this.removeAllListeners()
