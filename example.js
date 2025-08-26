@@ -1,4 +1,4 @@
-const { Client, Server } = require('node-nethernet')
+const { Client, Server } = require('nethernet')
 
 const server = new Server()
 // Client sends request to broadcast address and server responds with a message

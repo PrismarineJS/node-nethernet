@@ -1,5 +1,5 @@
 {
-  "name": "node-nethernet",
+  "name": "nethernet",
   "version": "0.0.1",
   "description": "(WIP) Minecraft Bedrock nethernet protocol",
   "main": "index.js",
@@ -26,7 +26,7 @@
   "devDependencies": {
     "debug": "^4.4.0",
     "mocha": "^10.0.0",
-    "node-nethernet": "file:.",
+    "nethernet": "file:.",
     "standard": "^17.0.0"
   },
   "dependencies": {

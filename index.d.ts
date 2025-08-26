@@ -2,7 +2,7 @@ import EventEmitter from 'node:events'
 import { RemoteInfo, Socket } from 'node:dgram'
 import { PeerConnection, DataChannel, IceServer } from 'node-datachannel'
 
-declare module 'node-nethernet' {
+declare module 'nethernet' {
 
   export interface ResponsePacket {
     binary: number[]

@@ -12,7 +12,7 @@ A Node.JS implementation of the NetherNet protocol.
 ## Install
 
 ```sh
-npm install node-nethernet
+npm install nethernet
 ```
 
 ## Example
