@@ -6,20 +6,35 @@
 
 [![Official Discord](https://img.shields.io/static/v1.svg?label=OFFICIAL&message=DISCORD&color=blue&logo=discord&style=for-the-badge)](https://discord.gg/GsEFRM8)
 
-WIP
 
-A template repository to make it easy to create new prismarine repo
+A Node.JS implementation of the NetherNet protocol.
 
-## Usage
+## Install
 
-```js
-const template = require('nethernet')
-
-template.helloWorld()
+```sh
+npm install nethernet
 ```
 
-## API
+## Example
 
-### helloWorld()
+```ts
+const { Client, Server } = require('node-nethernet')
 
-Prints hello world
+const server = new Server()
+// Client sends request to the broadcast address and server responds with a message
+server.setAdvertisement(Buffer.from([0]))
+const client = new Client(server.networkId)
+
+client.on('encapsulated', (buffer) => {
+  console.assert(buffer.toString() === '\xA0 Hello world')
+})
+
+server.on('openConnection', (client) => {
+  client.send(Buffer.from('\xA0 Hello world'))
+})
+
+server.listen()
+
+client.connect()
+
+```
