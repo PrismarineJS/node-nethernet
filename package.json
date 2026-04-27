@@ -30,7 +30,7 @@
     "standard": "^17.0.0"
   },
   "dependencies": {
-    "node-datachannel": "^0.26.0",
+    "node-datachannel": "^0.32.3",
     "protodef": "^1.19.0"
   }
 }
