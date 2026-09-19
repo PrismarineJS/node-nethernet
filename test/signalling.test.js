@@ -4,13 +4,13 @@ const { Client, ErrorCode, Server, SignalStructure, SignalType } = require('neth
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
-function cleanupClient(client) {
+function cleanupClient (client) {
   client.clearNegotiationTimeouts?.()
   clearInterval(client.pingInterval)
   client.socket.close()
 }
 
-function cleanupServer(server) {
+function cleanupServer (server) {
   if (server.acceptTimeouts) {
     for (const acceptTimeout of server.acceptTimeouts.values()) {
       clearTimeout(acceptTimeout)
