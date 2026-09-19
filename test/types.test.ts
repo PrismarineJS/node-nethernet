@@ -28,4 +28,17 @@ const connectResult: void = client.connect()
 const signal = new SignalStructure(SignalType.ConnectError, client.connectionId, String(ErrorCode.CandidateAdd), server.networkId)
 
 client.handleSignal(signal)
+void server.handleCandidate(signal, response => response.toString())
+if (client.rtcConnection) {
+  const state: RTCPeerConnectionState = client.rtcConnection.connectionState
+  void state
+  void client.rtcConnection.getStats()
+}
+client.on('connected', connection => {
+  if (connection.reliable) {
+    const buffered: number = connection.reliable.bufferedAmount
+    connection.reliable.send(Buffer.from('test'))
+    void buffered
+  }
+})
 void connectResult

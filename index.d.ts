@@ -1,17 +1,14 @@
+/// <reference lib="dom" />
 import EventEmitter from 'node:events'
 import { RemoteInfo, Socket } from 'node:dgram'
 
 declare module 'nethernet' {
 
-  export interface RTCPeerConnectionLike {
-    close(): void
-  }
+  // wrtc implements the standard WebRTC API. Use its standard interfaces without
+  // importing wrtc's upstream declarations, which currently fail strict checking.
+  export interface RTCPeerConnectionLike extends RTCPeerConnection {}
 
-  export interface RTCDataChannelLike {
-    readonly readyState: string
-    close(): void
-    send(data: string | Buffer | ArrayBuffer | ArrayBufferView): void
-  }
+  export interface RTCDataChannelLike extends RTCDataChannel {}
 
   export interface IceServer {
     urls: string | string[]
