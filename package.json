@@ -4,9 +4,10 @@
   "description": "(WIP) Minecraft Bedrock nethernet protocol",
   "main": "index.js",
   "scripts": {
-    "test": "mocha --reporter spec --exit",
-    "pretest": "npm run lint",
+    "test": "mocha --reporter spec",
+    "pretest": "npm run lint && npm run typecheck",
     "lint": "standard",
+    "typecheck": "tsc --noEmit --strict --types node --target ES2022 --module Node16 --moduleResolution Node16 test/types.test.ts",
     "fix": "standard --fix"
   },
   "repository": {
@@ -24,13 +25,15 @@
   },
   "homepage": "https://github.com/PrismarineJS/node-nethernet#readme",
   "devDependencies": {
+    "@types/node": "^24.13.6",
     "debug": "^4.4.0",
     "mocha": "^11.7.5",
     "nethernet": "file:.",
-    "standard": "^17.0.0"
+    "standard": "^17.0.0",
+    "typescript": "^7.0.2"
   },
   "dependencies": {
-    "node-datachannel": "^0.26.0",
+    "@roamhq/wrtc": "^0.10.0",
     "protodef": "^1.19.0"
   }
 }

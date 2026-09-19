@@ -34,16 +34,16 @@ async function connectTest () {
 
     server.listen()
     let lastC = 0
+    client.on('encapsulated', (encap) => {
+      console.assert(encap[0] === 0xf0)
+      const ix = encap[1]
+      if (lastC++ !== ix) {
+        throw Error(`Packet mismatch: ${lastC - 1} != ${ix}`)
+      }
+      client.send(encap)
+    })
     client.on('connected', () => {
       console.log('connected!')
-      client.on('encapsulated', (encap) => {
-        console.assert(encap[0] === 0xf0)
-        const ix = encap[1]
-        if (lastC++ !== ix) {
-          throw Error(`Packet mismatch: ${lastC - 1} != ${ix}`)
-        }
-        client.send(encap)
-      })
     })
     let lastS = 0
     server.on('encapsulated', (encap) => {
@@ -82,7 +82,7 @@ async function kickTest () {
       con.close()
     })
     server.listen()
-    client.on('disconnect', packet => {
+    client.once('disconnect', packet => {
       console.log('Client got disconnect', packet)
       try {
         client.send(Buffer.from('\xf0 yello'))
