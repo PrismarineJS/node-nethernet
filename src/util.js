@@ -7,6 +7,10 @@ const getRandomUint64 = () => {
   return (BigInt(high) << 32n) | BigInt(low)
 }
 
+const normalizeIceServers = (iceServers = []) => {
+  return iceServers.map(iceServer => typeof iceServer === 'string' ? { urls: iceServer } : iceServer)
+}
+
 const createPacketData = (packetName, packetId, senderId, additionalParams = {}) => {
   return {
     name: packetName,
@@ -46,6 +50,7 @@ const processSecurePacket = (buffer, deserializer) => {
 
 module.exports = {
   getRandomUint64,
+  normalizeIceServers,
   createPacketData,
   prepareSecurePacket,
   processSecurePacket

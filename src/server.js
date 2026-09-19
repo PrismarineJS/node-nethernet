@@ -7,7 +7,7 @@ const { ErrorCode, SignalStructure, SignalType } = require('./signalling')
 
 const { PACKET_TYPE, createSerializer, createDeserializer } = require('./serializer')
 
-const { getRandomUint64, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
+const { getRandomUint64, normalizeIceServers, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
 
 const debug = require('debug')('nethernet')
 const DEFAULT_ACCEPT_TIMEOUT_MS = 5_000
@@ -34,7 +34,7 @@ class Server extends EventEmitter {
     this.options = options
 
     this.networkId = options.networkId ?? getRandomUint64()
-    this.credentials = options.credentials ?? options.iceServers ?? []
+    this.credentials = normalizeIceServers(options.credentials ?? options.iceServers)
     this.acceptTimeoutMs = options.acceptTimeoutMs ?? DEFAULT_ACCEPT_TIMEOUT_MS
 
     this.connections = new Map()
@@ -113,7 +113,7 @@ class Server extends EventEmitter {
   async handleOffer (signal, respond, credentials = this.credentials) {
     let rtcConnection
     try {
-      rtcConnection = new RTCPeerConnection({ iceServers: credentials })
+      rtcConnection = new RTCPeerConnection({ iceServers: normalizeIceServers(credentials) })
     } catch (err) {
       debug('Failed to create RTCPeerConnection:', err)
       this.signalError(respond, signal, ErrorCode.FailedToCreatePeerConnection)

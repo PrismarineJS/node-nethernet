@@ -223,4 +223,39 @@ describe('signalling', function () {
       cleanupServer(server)
     }
   })
+
+  it('normalizes string ICE server URLs for the WebRTC backend', () => {
+    const iceServerUrl = 'stun:stun.example.com:3478'
+    const client = new Client(1n, '127.0.0.1', { iceServers: [iceServerUrl] })
+    const server = new Server({ credentials: [iceServerUrl] })
+
+    try {
+      assert.deepEqual(client.credentials, [{ urls: iceServerUrl }])
+      assert.deepEqual(server.credentials, [{ urls: iceServerUrl }])
+    } finally {
+      cleanupClient(client)
+    }
+  })
+
+  it('reports invalid WebRTC configuration without an unhandled rejection', () => {
+    const client = new Client(1n, '127.0.0.1', { iceServers: [null] })
+    let reportedError = null
+    let outgoingSignal = null
+
+    client.once('error', error => {
+      reportedError = error
+    })
+    client.signalHandler = signal => {
+      outgoingSignal = signal
+    }
+
+    try {
+      assert.doesNotThrow(() => client.connect())
+      assert.match(reportedError.message, /Failed to create peer connection/)
+      assert.equal(outgoingSignal.type, SignalType.ConnectError)
+      assert.equal(outgoingSignal.data, String(ErrorCode.FailedToCreatePeerConnection))
+    } finally {
+      cleanupClient(client)
+    }
+  })
 })

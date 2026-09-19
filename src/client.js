@@ -3,7 +3,7 @@ const { EventEmitter } = require('node:events')
 const { Connection } = require('./connection')
 const { ErrorCode, SignalType, SignalStructure } = require('./signalling')
 
-const { getRandomUint64, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
+const { getRandomUint64, normalizeIceServers, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
 const { RTCPeerConnection, RTCSessionDescription, RTCIceCandidate } = require('@roamhq/wrtc')
 const { PACKET_TYPE, createSerializer, createDeserializer } = require('./serializer')
 
@@ -43,7 +43,7 @@ class Client extends EventEmitter {
     this.responses = new Map()
     this.addresses = new Map()
 
-    this.credentials = options.credentials ?? options.iceServers ?? []
+    this.credentials = normalizeIceServers(options.credentials ?? options.iceServers)
     this.responseTimeoutMs = options.responseTimeoutMs ?? DEFAULT_RESPONSE_TIMEOUT_MS
     this.inactivityTimeoutMs = options.inactivityTimeoutMs ?? DEFAULT_INACTIVITY_TIMEOUT_MS
 
@@ -70,6 +70,23 @@ class Client extends EventEmitter {
 
   get signalHandler () {
     return this._signalHandler
+  }
+
+  reportError (error) {
+    if (this.listenerCount('error') > 0) {
+      this.emit('error', error)
+    } else {
+      debug(error)
+    }
+  }
+
+  startOffer () {
+    try {
+      const result = this.createOffer()
+      result?.catch?.(err => this.reportError(err))
+    } catch (err) {
+      this.reportError(err)
+    }
   }
 
   handleConnectionClosed (connection, reason = 'disconnected') {
@@ -179,7 +196,14 @@ class Client extends EventEmitter {
   async createOffer () {
     debug('Creating RTCPeerConnection with ICE servers:', this.credentials)
 
-    this.rtcConnection = new RTCPeerConnection({ iceServers: this.credentials })
+    try {
+      this.rtcConnection = new RTCPeerConnection({ iceServers: this.credentials })
+    } catch (err) {
+      debug('Failed to create RTCPeerConnection:', err)
+      this.failNegotiation(this.serverNetworkId, ErrorCode.FailedToCreatePeerConnection)
+      this.reportError(new Error(`Failed to create peer connection: ${err.message}`))
+      return
+    }
     const rtcConnection = this.rtcConnection
 
     this.connection = new Connection(this, this.connectionId, rtcConnection)
@@ -228,7 +252,7 @@ class Client extends EventEmitter {
     } catch (err) {
       debug('Failed to create offer:', err)
       this.failNegotiation(this.serverNetworkId, ErrorCode.FailedToCreateOffer)
-      this.emit('error', new Error(`Failed to create offer: ${err.message}`))
+      this.reportError(new Error(`Failed to create offer: ${err.message}`))
       return
     }
 
@@ -237,7 +261,7 @@ class Client extends EventEmitter {
     } catch (err) {
       debug('Failed to set local description:', err)
       this.failNegotiation(this.serverNetworkId, ErrorCode.FailedToSetLocalDescription)
-      this.emit('error', new Error(`Failed to set local description: ${err.message}`))
+      this.reportError(new Error(`Failed to set local description: ${err.message}`))
       return
     }
 
@@ -250,7 +274,7 @@ class Client extends EventEmitter {
     } catch (err) {
       debug('Failed to signal offer:', err)
       this.failNegotiation(this.serverNetworkId, ErrorCode.SignalingFailedToSend)
-      this.emit('error', new Error(`Failed to signal offer: ${err.message}`))
+      this.reportError(new Error(`Failed to signal offer: ${err.message}`))
     }
   }
 
@@ -287,7 +311,7 @@ class Client extends EventEmitter {
     if (this._pendingConnect && serverIdMatches) {
       this._pendingConnect = false
       this.armNegotiationTimeout(ErrorCode.NegotiationTimeoutWaitingForResponse, this.responseTimeoutMs)
-      this.createOffer()
+      this.startOffer()
     }
   }
 
@@ -357,7 +381,7 @@ class Client extends EventEmitter {
 
     if (this._externalSignaling || hasAddress) {
       this.armNegotiationTimeout(ErrorCode.NegotiationTimeoutWaitingForResponse, this.responseTimeoutMs)
-      this.createOffer()
+      this.startOffer()
     } else {
       this._pendingConnect = true
     }

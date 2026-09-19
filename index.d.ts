@@ -1,8 +1,23 @@
 import EventEmitter from 'node:events'
 import { RemoteInfo, Socket } from 'node:dgram'
-import { PeerConnection, DataChannel, IceServer } from 'node-datachannel'
 
 declare module 'nethernet' {
+
+  export interface RTCPeerConnectionLike {
+    close(): void
+  }
+
+  export interface RTCDataChannelLike {
+    readonly readyState: string
+    close(): void
+    send(data: string | Buffer | ArrayBuffer | ArrayBufferView): void
+  }
+
+  export interface IceServer {
+    urls: string | string[]
+    username?: string
+    credential?: string
+  }
 
   export interface ResponsePacket {
     binary: number[]
@@ -18,20 +33,22 @@ declare module 'nethernet' {
   export class Connection {
     nethernet: Client | Server;
     address: bigint;
-    rtcConnection: PeerConnection;
-    reliable: DataChannel | null;
-    unreliable: DataChannel | null;
+    rtcConnection: RTCPeerConnectionLike;
+    reliable: RTCDataChannelLike | null;
+    unreliable: RTCDataChannelLike | null;
     promisedSegments: number;
     buf: Buffer | null;
     sendQueue: Buffer[];
 
-    constructor(nethernet: Client | Server, address: bigint, rtcConnection: PeerConnection);
-    setChannels(reliable?: DataChannel | null, unreliable?: DataChannel | null): void;
+    closed: boolean;
+
+    constructor(nethernet: Client | Server, address: bigint, rtcConnection: RTCPeerConnectionLike);
+    setChannels(reliable?: RTCDataChannelLike | null, unreliable?: RTCDataChannelLike | null): void;
     handleMessage(data: Buffer | string | ArrayBuffer): void;
     send(data: Buffer | string): number;
     sendNow(data: Buffer): number;
     flushQueue(): void;
-    close(): void;
+    close(reason?: string): void;
   }
 
   export interface ServerOptions {
@@ -50,17 +67,18 @@ declare module 'nethernet' {
 
   export class Server extends EventEmitter {
     options: ServerOptions;
-    credentials: (string | IceServer)[];
+    credentials: IceServer[];
     acceptTimeoutMs: number;
     networkId: bigint;
     connections: Map<bigint, Connection>;
+    acceptTimeouts: Map<bigint, NodeJS.Timeout>;
     advertisement?: Buffer;
     socket: Socket;
     serializer: any;
     deserializer: any;
 
     constructor(options?: ServerOptions);
-    handleCandidate(signal: SignalStructure): Promise<void>;
+    handleCandidate(signal: SignalStructure, respond?: (signal: SignalStructure) => void): Promise<void>;
     handleOffer(signal: SignalStructure, respond: (signal: SignalStructure) => void, credentials?: (string | IceServer)[]): Promise<void>;
     processPacket(buffer: Buffer, rinfo: RemoteInfo): void;
     setAdvertisement(buffer: Buffer): void;
@@ -78,6 +96,7 @@ declare module 'nethernet' {
     disconnect: (connectionId: bigint, reason: string) => void;
     encapsulated: (data: Buffer, connectionId: bigint) => void;
     pong: (packet: any) => void;
+    error: (error: Error) => void;
   }
 
   export interface ClientOptions {
@@ -99,12 +118,12 @@ declare module 'nethernet' {
     deserializer: any;
     responses: Map<bigint, any>;
     addresses: Map<bigint, RemoteInfo>;
-    credentials: (string | IceServer)[];
+    credentials: IceServer[];
     responseTimeoutMs: number;
     inactivityTimeoutMs: number;
     signalHandler: (signal: SignalStructure) => void;
-    connection?: Connection;
-    rtcConnection?: PeerConnection;
+    connection?: Connection | null;
+    rtcConnection?: RTCPeerConnectionLike | null;
     pingInterval?: NodeJS.Timeout;
     running: boolean;
 
@@ -119,7 +138,7 @@ declare module 'nethernet' {
     handleSignal(signal: SignalStructure): void;
     sendDiscoveryRequest(): void;
     sendDiscoveryMessage(signal: SignalStructure): void;
-    connect(): Promise<void>;
+    connect(): void;
     send(buffer: Buffer): void;
     ping(): void;
     close(reason?: string): void;
