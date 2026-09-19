@@ -7,7 +7,7 @@ const { ErrorCode, SignalStructure, SignalType } = require('./signalling')
 
 const { PACKET_TYPE, createSerializer, createDeserializer } = require('./serializer')
 
-const { getRandomUint64, normalizeIceServers, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
+const { getRandomUint64, normalizeIceServers, validateIceServers, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
 
 const debug = require('debug')('nethernet')
 const DEFAULT_ACCEPT_TIMEOUT_MS = 5_000
@@ -39,12 +39,14 @@ class Server extends EventEmitter {
 
     this.connections = new Map()
     this.acceptTimeouts = new Map()
+    this._closed = false
 
     this.serializer = createSerializer()
     this.deserializer = createDeserializer()
   }
 
   handleConnectionClosed (connection, reason = 'disconnected') {
+    if (this.connections.get(connection.address) !== connection) return
     this.clearAcceptTimeout(connection.address)
     this.connections.delete(connection.address)
     this.emit('closeConnection', connection.address, reason)
@@ -111,9 +113,10 @@ class Server extends EventEmitter {
   }
 
   async handleOffer (signal, respond, credentials = this.credentials) {
+    if (this._closed || this.connections.has(signal.connectionId)) return
     let rtcConnection
     try {
-      rtcConnection = new RTCPeerConnection({ iceServers: normalizeIceServers(credentials) })
+      rtcConnection = new RTCPeerConnection({ iceServers: validateIceServers(normalizeIceServers(credentials)) })
     } catch (err) {
       debug('Failed to create RTCPeerConnection:', err)
       this.signalError(respond, signal, ErrorCode.FailedToCreatePeerConnection)
@@ -200,9 +203,11 @@ class Server extends EventEmitter {
     try {
       const offer = new RTCSessionDescription({ type: 'offer', sdp: signal.data })
       await rtcConnection.setRemoteDescription(offer)
+      if (connection.closed) return
       debug('Set remote description (offer)')
     } catch (err) {
       debug('Failed to set remote description (offer):', err)
+      if (connection.closed) return
       this.signalError(respond, signal, ErrorCode.FailedToSetRemoteDescription)
       connection.close('offerfailed')
       return
@@ -211,8 +216,10 @@ class Server extends EventEmitter {
     let answer
     try {
       answer = await rtcConnection.createAnswer()
+      if (connection.closed) return
     } catch (err) {
       debug('Failed to create answer:', err)
+      if (connection.closed) return
       this.signalError(respond, signal, ErrorCode.FailedToCreateAnswer)
       connection.close('answerfailed')
       return
@@ -220,9 +227,11 @@ class Server extends EventEmitter {
 
     try {
       await rtcConnection.setLocalDescription(answer)
+      if (connection.closed) return
       debug('Created and set local description (answer)')
     } catch (err) {
       debug('Failed to set local description (answer):', err)
+      if (connection.closed) return
       this.signalError(respond, signal, ErrorCode.FailedToSetLocalDescription)
       connection.close('answerfailed')
       return
@@ -324,6 +333,7 @@ class Server extends EventEmitter {
   }
 
   async listen () {
+    if (this._closed) throw new Error('Server is closed; create a new Server')
     this.socket = dgram.createSocket('udp4')
 
     this.socket.on('message', (buffer, rinfo) => {
@@ -342,14 +352,17 @@ class Server extends EventEmitter {
 
   close (reason) {
     debug('Closing server', reason)
+    if (this._closed) return
+    this._closed = true
     for (const conn of this.connections.values()) {
-      conn.close()
+      conn.close(reason)
     }
-
-    this.socket.close(() => {
+    const finish = () => {
       this.emit('close', reason)
       this.removeAllListeners()
-    })
+    }
+    if (!this.socket) return finish()
+    this.socket.close(finish)
   }
 }
 

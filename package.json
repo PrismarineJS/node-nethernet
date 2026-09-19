@@ -4,7 +4,7 @@
   "description": "(WIP) Minecraft Bedrock nethernet protocol",
   "main": "index.js",
   "scripts": {
-    "test": "mocha --reporter spec --exit",
+    "test": "mocha --reporter spec",
     "pretest": "npm run lint && npm run typecheck",
     "lint": "standard",
     "typecheck": "tsc --noEmit --strict --types node --target ES2022 --module Node16 --moduleResolution Node16 test/types.test.ts",

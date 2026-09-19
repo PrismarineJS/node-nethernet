@@ -105,16 +105,15 @@ describe('signalling', function () {
       outgoingSignal = signal
     }
 
-    client.connection = {
-      close: (reason) => {
-        closeReason = reason
-      }
-    }
-
     client.createOffer = () => { }
 
     try {
       client.connect()
+      client.connection = {
+        close: (reason) => {
+          closeReason = reason
+        }
+      }
       await delay(30)
     } finally {
       cleanupClient(client)

@@ -3,7 +3,7 @@ const { EventEmitter } = require('node:events')
 const { Connection } = require('./connection')
 const { ErrorCode, SignalType, SignalStructure } = require('./signalling')
 
-const { getRandomUint64, normalizeIceServers, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
+const { getRandomUint64, normalizeIceServers, validateIceServers, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
 const { RTCPeerConnection, RTCSessionDescription, RTCIceCandidate } = require('@roamhq/wrtc')
 const { PACKET_TYPE, createSerializer, createDeserializer } = require('./serializer')
 
@@ -26,6 +26,10 @@ class Client extends EventEmitter {
     this.networkId = options.networkId ?? getRandomUint64()
 
     this.connectionId = options.connectionId ?? getRandomUint64()
+    this._closed = false
+    this._connecting = false
+    this._attempted = false
+    this.running = false
 
     this.socket = dgram.createSocket('udp4')
 
@@ -34,7 +38,7 @@ class Client extends EventEmitter {
     })
 
     this.socket.bind(() => {
-      this.socket.setBroadcast(true)
+      if (!this._closed) this.socket.setBroadcast(true)
     })
 
     this.serializer = createSerializer()
@@ -90,7 +94,10 @@ class Client extends EventEmitter {
   }
 
   handleConnectionClosed (connection, reason = 'disconnected') {
+    if (this.connection !== connection) return
     this.clearNegotiationTimeouts()
+    this._connecting = false
+    this._pendingConnect = false
 
     if (this.connection === connection) {
       this.connection = null
@@ -130,6 +137,8 @@ class Client extends EventEmitter {
 
   failNegotiation (networkId, code) {
     this.clearNegotiationTimeouts()
+    this._pendingConnect = false
+    this._connecting = false
 
     try {
       this.signalError(networkId, code)
@@ -146,6 +155,7 @@ class Client extends EventEmitter {
 
     this.rtcConnection?.close()
     this.rtcConnection = null
+    this.emit('disconnect', this.connectionId, reason)
   }
 
   isExpectedSignal (signal) {
@@ -163,31 +173,36 @@ class Client extends EventEmitter {
   }
 
   async handleCandidate (signal) {
+    const rtcConnection = this.rtcConnection
     try {
-      if (!this.rtcConnection) {
+      if (!rtcConnection) {
         debug('No RTC connection, ignoring candidate')
         return
       }
 
       const candidate = new RTCIceCandidate({ candidate: signal.data, sdpMid: '0', sdpMLineIndex: 0 })
 
-      await this.rtcConnection.addIceCandidate(candidate)
+      await rtcConnection.addIceCandidate(candidate)
       debug('Added remote ICE candidate')
     } catch (err) {
+      if (this._closed || this.rtcConnection !== rtcConnection) return
       debug('Failed to add remote candidate:', err)
       this.failNegotiation(signal.networkId, ErrorCode.CandidateAdd)
     }
   }
 
   async handleAnswer (signal) {
+    const rtcConnection = this.rtcConnection
     this.clearNegotiationTimeouts()
 
     try {
       const answer = new RTCSessionDescription({ type: 'answer', sdp: signal.data })
-      await this.rtcConnection.setRemoteDescription(answer)
+      await rtcConnection.setRemoteDescription(answer)
+      if (this._closed || this.rtcConnection !== rtcConnection) return
       debug('Set remote description (answer)')
-      this.armNegotiationTimeout(ErrorCode.InactivityTimeout, this.inactivityTimeoutMs)
+      if (!this._hasEmittedConnected) this.armNegotiationTimeout(ErrorCode.InactivityTimeout, this.inactivityTimeoutMs)
     } catch (err) {
+      if (this._closed || this.rtcConnection !== rtcConnection) return
       debug('Failed to set remote description:', err)
       this.failNegotiation(signal.networkId, ErrorCode.FailedToSetRemoteDescription)
     }
@@ -197,7 +212,7 @@ class Client extends EventEmitter {
     debug('Creating RTCPeerConnection with ICE servers:', this.credentials)
 
     try {
-      this.rtcConnection = new RTCPeerConnection({ iceServers: this.credentials })
+      this.rtcConnection = new RTCPeerConnection({ iceServers: validateIceServers(normalizeIceServers(this.credentials)) })
     } catch (err) {
       debug('Failed to create RTCPeerConnection:', err)
       this.failNegotiation(this.serverNetworkId, ErrorCode.FailedToCreatePeerConnection)
@@ -207,9 +222,11 @@ class Client extends EventEmitter {
     const rtcConnection = this.rtcConnection
 
     this.connection = new Connection(this, this.connectionId, rtcConnection)
+    const connection = this.connection
+    const isCurrent = () => !this._closed && this.connection === connection && !connection.closed
 
     rtcConnection.onicecandidate = (event) => {
-      if (event.candidate) {
+      if (event.candidate && isCurrent()) {
         debug('Sending CandidateAdd to networkId:', this.serverNetworkId)
         const signal = new SignalStructure(SignalType.CandidateAdd, this.connectionId, event.candidate.candidate, this.serverNetworkId)
 
@@ -218,23 +235,26 @@ class Client extends EventEmitter {
     }
 
     rtcConnection.onconnectionstatechange = () => {
+      if (!isCurrent()) return
       const state = rtcConnection.connectionState
       debug('Client connection state changed:', state)
       if (state === 'connected' && !this._hasEmittedConnected) {
         this.clearNegotiationTimeouts()
         this._hasEmittedConnected = true
+        this._connecting = false
         this.emit('connected', this.connection)
       }
       if (state === 'closed' || state === 'disconnected' || state === 'failed') {
-        this.connection?.notifyClosed('disconnected')
+        connection.close('disconnected')
       }
     }
 
     rtcConnection.oniceconnectionstatechange = () => {
+      if (!isCurrent()) return
       const state = rtcConnection.iceConnectionState
       debug('Client ICE state changed:', state)
       if (state === 'failed') {
-        this.connection?.notifyClosed('disconnected')
+        connection.close('disconnected')
       }
     }
 
@@ -248,8 +268,10 @@ class Client extends EventEmitter {
 
     let offer
     try {
-      offer = await this.rtcConnection.createOffer()
+      offer = await rtcConnection.createOffer()
+      if (!isCurrent()) return
     } catch (err) {
+      if (!isCurrent()) return
       debug('Failed to create offer:', err)
       this.failNegotiation(this.serverNetworkId, ErrorCode.FailedToCreateOffer)
       this.reportError(new Error(`Failed to create offer: ${err.message}`))
@@ -257,8 +279,10 @@ class Client extends EventEmitter {
     }
 
     try {
-      await this.rtcConnection.setLocalDescription(offer)
+      await rtcConnection.setLocalDescription(offer)
+      if (!isCurrent()) return
     } catch (err) {
+      if (!isCurrent()) return
       debug('Failed to set local description:', err)
       this.failNegotiation(this.serverNetworkId, ErrorCode.FailedToSetLocalDescription)
       this.reportError(new Error(`Failed to set local description: ${err.message}`))
@@ -301,6 +325,7 @@ class Client extends EventEmitter {
   }
 
   handleResponse (packet, rinfo) {
+    if (this._closed) return
     const senderId = BigInt(packet.params.sender_id)
     this.addresses.set(senderId, rinfo)
     this.responses.set(senderId, packet.params)
@@ -334,6 +359,7 @@ class Client extends EventEmitter {
   }
 
   handleSignal (signal) {
+    if (this._closed) return
     if (!this.isExpectedSignal(signal)) {
       return
     }
@@ -352,6 +378,7 @@ class Client extends EventEmitter {
   }
 
   sendDiscoveryRequest () {
+    if (this._closed) return
     const packetData = createPacketData('discovery_request', PACKET_TYPE.DISCOVERY_REQUEST, this.networkId)
 
     const packetToSend = prepareSecurePacket(this.serializer, packetData)
@@ -361,6 +388,7 @@ class Client extends EventEmitter {
 
   sendDiscoveryMessage (signal) {
     const rinfo = this.addresses.get(BigInt(signal.networkId))
+    if (this._closed || !rinfo) return
 
     const packetData = createPacketData('discovery_message', PACKET_TYPE.DISCOVERY_MESSAGE, this.networkId,
       {
@@ -374,13 +402,18 @@ class Client extends EventEmitter {
   }
 
   connect () {
+    if (this._closed) throw new Error('Client is closed; create a new Client')
+    if (this._connecting || this.connection) return
+    if (this._attempted) this.connectionId = getRandomUint64()
+    this._attempted = true
+    this._connecting = true
     this.running = true
     this._hasEmittedConnected = false
+    this.armNegotiationTimeout(ErrorCode.NegotiationTimeoutWaitingForResponse, this.responseTimeoutMs)
 
     const hasAddress = this.addresses.has(this.serverNetworkId)
 
     if (this._externalSignaling || hasAddress) {
-      this.armNegotiationTimeout(ErrorCode.NegotiationTimeoutWaitingForResponse, this.responseTimeoutMs)
       this.startOffer()
     } else {
       this._pendingConnect = true
@@ -396,6 +429,7 @@ class Client extends EventEmitter {
   }
 
   ping () {
+    if (this._closed) throw new Error('Client is closed; create a new Client')
     this.running = true
 
     this.sendDiscoveryRequest()
@@ -403,11 +437,20 @@ class Client extends EventEmitter {
 
   close (reason) {
     debug('Closing client', reason)
-    if (!this.running) return
+    if (this._closed) return
+    this._closed = true
+    this._pendingConnect = false
+    this._connecting = false
     clearInterval(this.pingInterval)
     this.clearNegotiationTimeouts()
     this.connection?.close(reason)
-    setTimeout(() => this.socket.close(), SOCKET_CLOSE_TIMEOUT_MS)
+    setTimeout(() => {
+      try {
+        this.socket.close()
+      } catch (err) {
+        if (err.code !== 'ERR_SOCKET_DGRAM_NOT_RUNNING') throw err
+      }
+    }, SOCKET_CLOSE_TIMEOUT_MS)
     this.connection = null
     this.rtcConnection = null
     this.running = false

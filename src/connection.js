@@ -78,6 +78,7 @@ class Connection {
   }
 
   send (data) {
+    if (this.closed) throw new Error('Connection is closed')
     if (typeof data === 'string') {
       data = Buffer.from(data)
     }
@@ -126,18 +127,14 @@ class Connection {
   }
 
   notifyClosed (reason = 'disconnected') {
-    if (this.closed) {
-      return
-    }
-
-    this.closed = true
-    this.buf = null
-    this.sendQueue.length = 0
-    this.nethernet.handleConnectionClosed?.(this, reason)
+    this.close(reason)
   }
 
   close (reason = 'closed') {
-    this.notifyClosed(reason)
+    if (this.closed) return
+    this.closed = true
+    this.buf = null
+    this.sendQueue.length = 0
 
     if (this.reliable) {
       this.reliable.close()
@@ -148,6 +145,7 @@ class Connection {
     if (this.rtcConnection) {
       this.rtcConnection.close()
     }
+    this.nethernet.handleConnectionClosed?.(this, reason)
   }
 }
 
