@@ -1,5 +1,8 @@
 ## History
 
+### 1.1.1
+* [Recover undercounted discovery_message signals (#25)](https://github.com/PrismarineJS/node-nethernet/commit/1b150f1eb8a9ba31e98e3c9bbe51d30977122845) (thanks @Pix3lPirat3)
+
 ### 1.1.0
 * [Add optional a=identity assertion for realm/Xbox connections (#19)](https://github.com/PrismarineJS/node-nethernet/commit/10b30e8ce8d0cb327b3991593ab98219891ea4b7) (thanks @Pix3lPirat3)
 * [revert](https://github.com/PrismarineJS/node-nethernet/commit/bcee1b91ec5cf573946b5c83c9d38aa73932ab34) (thanks @extremeheat)
