@@ -74,6 +74,44 @@ describe('discovery_message length-prefix truncation', () => {
     assert.strictEqual(out.params.data, small)
   })
 
+  it('ignores an undercounted outer length when the inner length is correct', () => {
+    const short = Buffer.from(plaintext)
+    short.writeUInt16LE(1172, OUTER_LEN_OFFSET)
+    assert.strictEqual(processSecurePacket(secureFrom(short), deserializer).params.data, signal)
+  })
+
+  it('uses byte boundaries when the prefix splits the final UTF-8 character', () => {
+    const text = 'CONNECTRESPONSE 42 v=0\r\ns=é'
+    const short = plaintextFor(text)
+    short.writeUInt32LE(Buffer.byteLength(text) - 1, DATA_LEN_OFFSET)
+    assert.strictEqual(processSecurePacket(secureFrom(short), deserializer).params.data, text)
+  })
+
+  it('does not extend other signalling messages', () => {
+    const text = signal.replace('CONNECTRESPONSE', 'CONNECTREQUEST')
+    const short = plaintextFor(text)
+    short.writeUInt32LE(100, DATA_LEN_OFFSET)
+    assert.strictEqual(processSecurePacket(secureFrom(short), deserializer).params.data, text.slice(0, 100))
+  })
+
+  it('does not extend discovery advertisements', () => {
+    const advertisement = createSerializer().createPacketBuffer(createPacketData('discovery_response', 1, 111n, { data: signal }))
+    advertisement.writeUInt32LE(100, 20)
+    assert.strictEqual(processSecurePacket(secureFrom(advertisement), deserializer).params.data, signal.slice(0, 100))
+  })
+
+  it('does not absorb a second encapsulated discovery frame', () => {
+    const batched = Buffer.concat([plaintext, plaintextFor('Ping')])
+    assert.strictEqual(processSecurePacket(secureFrom(batched), deserializer).params.data, signal)
+  })
+
+  it('does not recover a short answer across an appended binary frame', () => {
+    const short = Buffer.from(plaintext)
+    short.writeUInt32LE(100, DATA_LEN_OFFSET)
+    const batched = Buffer.concat([short, plaintextFor('Ping')])
+    assert.strictEqual(processSecurePacket(secureFrom(batched), deserializer).params.data, signal.slice(0, 100))
+  })
+
   it('still rejects an invalid checksum', () => {
     const bad = secureFrom(plaintext)
     bad[0] ^= 0xff
