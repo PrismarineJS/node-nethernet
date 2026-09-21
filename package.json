@@ -25,6 +25,7 @@
   },
   "homepage": "https://github.com/PrismarineJS/node-nethernet#readme",
   "devDependencies": {
+    "@roamhq/wrtc": "^0.10.0",
     "@types/node": "^24.13.6",
     "debug": "^4.4.0",
     "mocha": "^11.7.5",
@@ -33,7 +34,18 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "@roamhq/wrtc": "^0.10.0",
-    "protodef": "^1.19.0"
+    "protodef": "^1.19.0",
+    "werift": "0.24.4"
+  },
+  "peerDependencies": {
+    "@roamhq/wrtc": "^0.10.0"
+  },
+  "peerDependenciesMeta": {
+    "@roamhq/wrtc": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
