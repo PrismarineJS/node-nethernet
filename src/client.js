@@ -5,6 +5,7 @@ const { Connection } = require('./connection')
 const { ErrorCode, SignalType, SignalStructure } = require('./signalling')
 
 const { getRandomUint64, normalizeIceServers, validateIceServers, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
+const { resolveTurnRedirects } = require('./turnRedirect')
 const { getWebRTC } = require('./webrtc')
 const { PACKET_TYPE, createSerializer, createDeserializer } = require('./serializer')
 
@@ -215,6 +216,15 @@ class Client extends EventEmitter {
   }
 
   async createOffer () {
+    // Follow a TURN "300 Try Alternate" redirect before building the peer connection. Microsoft's Realm relay redirects
+    // the initial Allocate to a regional relay; the werift backend does not follow it, so pre-resolve the alternate here
+    // and hand werift the redirected URL (native backends already follow it and are unaffected). Best-effort: on any
+    // probe failure the original ICE servers are used unchanged. See turnRedirect.js.
+    try {
+      this.credentials = await resolveTurnRedirects(normalizeIceServers(this.credentials))
+    } catch (err) {
+      debug('TURN redirect pre-resolve failed, using original ICE servers:', err)
+    }
     debug('Creating RTCPeerConnection with ICE servers:', this.credentials)
 
     try {
