@@ -119,6 +119,7 @@ describe('lifecycle', function () {
         const disconnected = once(client, 'disconnect')
         remote.close()
         await disconnected
+        await connection.rtcConnection.close()
         assert.equal(connection.rtcConnection.connectionState, 'closed')
         assert.equal(server.connections.size, 0)
       }

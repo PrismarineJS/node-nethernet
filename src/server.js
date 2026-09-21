@@ -1,6 +1,6 @@
 const dgram = require('node:dgram')
 const { EventEmitter } = require('node:events')
-const { RTCPeerConnection, RTCSessionDescription, RTCIceCandidate } = require('@roamhq/wrtc')
+const { getWebRTC } = require('./webrtc')
 
 const { Connection } = require('./connection')
 const { ErrorCode, SignalStructure, SignalType } = require('./signalling')
@@ -30,6 +30,8 @@ function isExpectedDataChannel (channel) {
 class Server extends EventEmitter {
   constructor (options = {}) {
     super()
+
+    this.webrtc = getWebRTC(options.webrtcBackend)
 
     this.options = options
 
@@ -97,7 +99,7 @@ class Server extends EventEmitter {
 
     if (conn) {
       try {
-        const candidate = new RTCIceCandidate({ candidate: signal.data, sdpMid: '0', sdpMLineIndex: 0 })
+        const candidate = { candidate: signal.data, sdpMid: '0', sdpMLineIndex: 0 }
         await conn.rtcConnection.addIceCandidate(candidate)
         debug('Added remote ICE candidate')
       } catch (err) {
@@ -116,7 +118,7 @@ class Server extends EventEmitter {
     if (this._closed || this.connections.has(signal.connectionId)) return
     let rtcConnection
     try {
-      rtcConnection = new RTCPeerConnection({ iceServers: validateIceServers(normalizeIceServers(credentials)) })
+      rtcConnection = new this.webrtc.RTCPeerConnection({ iceServers: validateIceServers(normalizeIceServers(credentials)) })
     } catch (err) {
       debug('Failed to create RTCPeerConnection:', err)
       this.signalError(respond, signal, ErrorCode.FailedToCreatePeerConnection)
@@ -201,7 +203,7 @@ class Server extends EventEmitter {
     }
 
     try {
-      const offer = new RTCSessionDescription({ type: 'offer', sdp: signal.data })
+      const offer = { type: 'offer', sdp: signal.data }
       await rtcConnection.setRemoteDescription(offer)
       if (connection.closed) return
       debug('Set remote description (offer)')
@@ -239,7 +241,7 @@ class Server extends EventEmitter {
 
     try {
       respond(
-        new SignalStructure(SignalType.ConnectResponse, signal.connectionId, answer.sdp, signal.networkId)
+        new SignalStructure(SignalType.ConnectResponse, signal.connectionId, rtcConnection.localDescription.sdp, signal.networkId)
       )
       this.armAcceptTimeout(connection, signal, respond)
     } catch (err) {

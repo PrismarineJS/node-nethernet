@@ -8,6 +8,7 @@ const iceServer: IceServer = {
 }
 
 const server = new Server({
+  webrtcBackend: 'werift',
   networkId: 1n,
   iceServers: [iceServer, 'stun:stun.example.com:3478'],
   acceptTimeoutMs: 5_000
@@ -15,6 +16,7 @@ const server = new Server({
 
 const client = new Client(server.networkId, undefined, {
   identity: { privateKey: generateKeyPairSync('ec', { namedCurve: 'secp384r1' }).privateKey, token: 'multiplayer-token' },
+  webrtcBackend: 'auto',
   networkId: 2n,
   connectionId: 3n,
   credentials: [iceServer, 'stun:stun.example.com:3478'],
@@ -48,3 +50,7 @@ void connectResult
 client.identity = { privateKey: 'PEM key', token: 'refreshed-token', domain: '' }
 
 new Server({ host: '127.0.0.1' })
+
+new Server({ webrtcBackend: 'wrtc' })
+// @ts-expect-error Unknown backend
+new Client(1n, undefined, { webrtcBackend: 'unknown' })
