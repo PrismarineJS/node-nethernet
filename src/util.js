@@ -62,8 +62,32 @@ const processSecurePacket = (buffer, deserializer) => {
   }
 
   const packet = deserializer.parsePacketBuffer(decryptedData)
+  const result = { name: packet.data.name, params: packet.data.params }
 
-  return { name: packet.data.name, params: packet.data.params }
+  // Length-prefix compatibility for discovery_message. A Minecraft client that sends a non-trickle answer with all ICE
+  // candidates inline undercounts the length prefixes it writes: both the outer encapsulated lu16 and the inner data
+  // pstring lu32 stop short (observed ~244 bytes, cutting the SDP trailer a=ice-pwd/fingerprint/setup/mid/sctp). The
+  // outer prefix does not bound the inner parser, so the pstring is the truncation point, and protodef returns a
+  // partial signal even though the whole payload is present in this checksum-validated datagram. Recover it by reading
+  // the data field to the end of the buffer.
+  //
+  // Scope + assumption: applied only to discovery_message (the observed CONNECTRESPONSE case); discovery_response is not
+  // touched (no evidence of the same undercount there). This assumes a single encapsulated message per secure datagram,
+  // which is what the client sends today. Checksum validation proves integrity, not framing, so if message batching or
+  // trailing framing is ever introduced this must bound by real message boundaries instead of absorbing the remainder.
+  //
+  // Field offset in the decrypted plaintext: outer lu16 (2) + type lu16 (2) + sender_id lu64 (8) + reserved (8) +
+  // recipient_id lu64 (8) + data lu32 (4) = 32.
+  const DISCOVERY_MESSAGE_DATA_OFFSET = 32
+  if (result.name === 'discovery_message' && decryptedData.length > DISCOVERY_MESSAGE_DATA_OFFSET) {
+    const parsedBytes = Buffer.byteLength(String(result.params.data ?? ''), 'utf8')
+    const availableBytes = decryptedData.length - DISCOVERY_MESSAGE_DATA_OFFSET
+    if (availableBytes > parsedBytes) {
+      result.params.data = decryptedData.toString('utf8', DISCOVERY_MESSAGE_DATA_OFFSET)
+    }
+  }
+
+  return result
 }
 
 module.exports = {
