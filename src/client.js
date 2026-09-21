@@ -1,3 +1,4 @@
+const { attachIdentity } = require('./identity')
 const dgram = require('node:dgram')
 const { EventEmitter } = require('node:events')
 const { Connection } = require('./connection')
@@ -295,14 +296,7 @@ class Client extends EventEmitter {
     try {
       const localDesc = this.rtcConnection.localDescription
       let sdp = localDesc.sdp
-      if (this.identity) {
-        try {
-          sdp = require('./identity').attachIdentity(sdp, this.identity)
-          debug('Attached a=identity to offer SDP')
-        } catch (e) {
-          debug('Failed to attach a=identity:', e.message)
-        }
-      }
+      if (this.identity) sdp = attachIdentity(sdp, this.identity)
 
       this._signalHandler(
         new SignalStructure(SignalType.ConnectRequest, this.connectionId, sdp, this.serverNetworkId)

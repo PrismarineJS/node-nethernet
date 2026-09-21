@@ -6,7 +6,7 @@
 // private key whose public key is the multiplayer token's `cpk` claim.
 const crypto = require('crypto')
 
-const b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+const b64url = (buf) => Buffer.from(buf).toString('base64url')
 
 // Parse `a=fingerprint:<alg> <digest>` lines from an SDP into [{algorithm, digest}] (order preserved).
 function extractFingerprints (sdp) {
@@ -20,14 +20,18 @@ function extractFingerprints (sdp) {
 
 // Canonical JSON payload the JWS signs (byte-identical to go-nethernet's generateFingerprints: no spaces).
 function fingerprintsPayload (fps) {
-  return '{"fingerprint":[' + fps.map(f => `{"algorithm":${JSON.stringify(f.algorithm)},"digest":${JSON.stringify(f.digest)}}`).join(',') + ']}'
+  return JSON.stringify({ fingerprint: fps })
 }
 
 // Detached compact ES384 JWS over `payload` (header..signature). Signature is raw r||s (ieee-p1363 == JOSE).
 function detachedES384 (payloadBytes, privateKey) {
+  const key = privateKey instanceof crypto.KeyObject ? privateKey : crypto.createPrivateKey(privateKey)
+  if (key.type !== 'private' || key.asymmetricKeyType !== 'ec' || key.asymmetricKeyDetails?.namedCurve !== 'secp384r1') {
+    throw new TypeError('Nethernet identity requires an EC P-384 private key')
+  }
   const header = b64url(JSON.stringify({ alg: 'ES384' }))
   const signingInput = header + '.' + b64url(payloadBytes)
-  const sig = crypto.sign('SHA384', Buffer.from(signingInput), { key: privateKey, dsaEncoding: 'ieee-p1363' })
+  const sig = crypto.sign('SHA384', Buffer.from(signingInput), { key, dsaEncoding: 'ieee-p1363' })
   return header + '..' + b64url(sig)
 }
 
@@ -36,8 +40,7 @@ function detachedES384 (payloadBytes, privateKey) {
 function buildIdentityAttribute (sdp, identity) {
   const fps = extractFingerprints(sdp)
   if (!fps.length) throw new Error('nethernet identity: no a=fingerprint in offer SDP')
-  const key = identity.privateKey instanceof crypto.KeyObject ? identity.privateKey : crypto.createPrivateKey(identity.privateKey)
-  const fingerprints = detachedES384(Buffer.from(fingerprintsPayload(fps)), key)
+  const fingerprints = detachedES384(Buffer.from(fingerprintsPayload(fps)), identity.privateKey)
   const assertion = JSON.stringify({ fingerprints, token: identity.token })
   const identityData = { assertion, idp: { domain: identity.domain || '', protocol: 'default' } }
   return Buffer.from(JSON.stringify(identityData)).toString('base64')

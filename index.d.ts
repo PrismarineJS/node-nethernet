@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+import { KeyObject } from 'node:crypto'
 import EventEmitter from 'node:events'
 import { RemoteInfo, Socket } from 'node:dgram'
 
@@ -96,7 +97,14 @@ declare module 'nethernet' {
     error: (error: Error) => void;
   }
 
+  export interface Identity {
+    privateKey: KeyObject | string | Buffer;
+    token: string;
+    domain?: string;
+  }
+
   export interface ClientOptions {
+    identity?: Identity;
     networkId?: bigint;
     connectionId?: bigint;
     credentials?: (string | IceServer)[];
@@ -106,6 +114,7 @@ declare module 'nethernet' {
   }
 
   export class Client extends EventEmitter {
+    identity?: Identity;
     serverNetworkId: bigint;
     broadcastAddress: string;
     networkId: bigint;

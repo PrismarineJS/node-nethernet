@@ -26,6 +26,24 @@ function cleanupServer (server) {
 describe('signalling', function () {
   this.timeout(10000)
 
+  it('reports identity signing failure without sending an unsigned offer', async () => {
+    const client = new Client(1n, '127.0.0.1', { identity: { privateKey: 'invalid key', token: 'a.b.c' } })
+    const outgoing = []
+    let failure
+    client.signalHandler = signal => outgoing.push(signal)
+    client.on('error', error => { failure = error })
+    try {
+      await client.createOffer()
+      assert.ok(failure)
+      assert.match(failure.message, /Failed to signal offer/)
+      assert.equal(outgoing.some(signal => signal.type === SignalType.ConnectRequest), false)
+      assert.equal(outgoing.some(signal => signal.type === SignalType.ConnectError), true)
+      assert.equal(client.connection, null)
+    } finally {
+      client.close()
+    }
+  })
+
   it('signals CONNECTERROR when the client cannot apply an answer', async () => {
     const client = new Client(1n, '127.0.0.1')
     let outgoingSignal = null

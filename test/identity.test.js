@@ -36,9 +36,9 @@ describe('identity (a=identity assertion)', () => {
     const parts = jws.split('.')
     assert.strictEqual(parts.length, 3)
     assert.strictEqual(parts[1], '', 'payload must be detached (empty middle segment)')
-    const b64url = (b) => Buffer.from(b).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    const b64url = (b) => Buffer.from(b).toString('base64url')
     const signingInput = parts[0] + '.' + b64url(payload)
-    const sig = Buffer.from(parts[2].replace(/-/g, '+').replace(/_/g, '/'), 'base64')
+    const sig = Buffer.from(parts[2], 'base64url')
     assert.strictEqual(sig.length, 96, 'ES384/P-384 signature is 96 bytes (r||s)')
     const ok = crypto.verify('SHA384', Buffer.from(signingInput), { key: keyPair.publicKey, dsaEncoding: 'ieee-p1363' }, sig)
     assert.strictEqual(ok, true)
@@ -62,6 +62,11 @@ describe('identity (a=identity assertion)', () => {
     // idempotent: re-attaching replaces rather than duplicates
     const again = attachIdentity(munged, { privateKey: keyPair.privateKey, token: 'a.b.c', domain: '' })
     assert.strictEqual((again.match(/a=identity:/g) || []).length, 1)
+  })
+
+  it('rejects a P-256 key instead of mislabelling its signature ES384', () => {
+    const { privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    assert.throws(() => buildIdentityAttribute(SDP, { privateKey, token: 'a.b.c' }), /P-384 private key/)
   })
 
   it('throws when the offer has no DTLS fingerprint', () => {

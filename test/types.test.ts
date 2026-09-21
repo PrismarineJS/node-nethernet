@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from 'node:crypto'
 import { Client, Connection, ErrorCode, IceServer, Server, SignalStructure, SignalType } from 'nethernet'
 
 const iceServer: IceServer = {
@@ -13,6 +14,7 @@ const server = new Server({
 })
 
 const client = new Client(server.networkId, undefined, {
+  identity: { privateKey: generateKeyPairSync('ec', { namedCurve: 'secp384r1' }).privateKey, token: 'multiplayer-token' },
   networkId: 2n,
   connectionId: 3n,
   credentials: [iceServer, 'stun:stun.example.com:3478'],
@@ -42,3 +44,5 @@ client.on('connected', connection => {
   }
 })
 void connectResult
+
+client.identity = { privateKey: 'PEM key', token: 'refreshed-token', domain: '' }
