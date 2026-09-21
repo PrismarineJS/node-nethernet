@@ -50,6 +50,9 @@ class Client extends EventEmitter {
     this.credentials = normalizeIceServers(options.credentials ?? options.iceServers)
     this.responseTimeoutMs = options.responseTimeoutMs ?? DEFAULT_RESPONSE_TIMEOUT_MS
     this.inactivityTimeoutMs = options.inactivityTimeoutMs ?? DEFAULT_INACTIVITY_TIMEOUT_MS
+    // Optional NetherNet identity assertion: { privateKey, token, domain }. When set, an a=identity attribute is
+    // attached to the offer SDP so realm/Xbox hosts admit the connection (missing it -> CONNECTERROR 37).
+    this.identity = options.identity
 
     this._signalHandler = this.sendDiscoveryMessage.bind(this)
 
@@ -291,9 +294,18 @@ class Client extends EventEmitter {
 
     try {
       const localDesc = this.rtcConnection.localDescription
+      let sdp = localDesc.sdp
+      if (this.identity) {
+        try {
+          sdp = require('./identity').attachIdentity(sdp, this.identity)
+          debug('Attached a=identity to offer SDP')
+        } catch (e) {
+          debug('Failed to attach a=identity:', e.message)
+        }
+      }
 
       this._signalHandler(
-        new SignalStructure(SignalType.ConnectRequest, this.connectionId, localDesc.sdp, this.serverNetworkId)
+        new SignalStructure(SignalType.ConnectRequest, this.connectionId, sdp, this.serverNetworkId)
       )
     } catch (err) {
       debug('Failed to signal offer:', err)
