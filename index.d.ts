@@ -50,6 +50,8 @@ declare module 'nethernet' {
   }
 
   export interface ServerOptions {
+    /** Local IPv4 address for UDP discovery (default: 0.0.0.0). Does not restrict ICE candidates. */
+    host?: string;
     networkId?: bigint;
     credentials?: (string | IceServer)[];
     iceServers?: (string | IceServer)[];

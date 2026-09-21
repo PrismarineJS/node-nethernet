@@ -46,3 +46,5 @@ client.on('connected', connection => {
 void connectResult
 
 client.identity = { privateKey: 'PEM key', token: 'refreshed-token', domain: '' }
+
+new Server({ host: '127.0.0.1' })
