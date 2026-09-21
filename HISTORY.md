@@ -1,5 +1,16 @@
 ## History
 
+### 1.0.0
+* [Merge pull request #18 from PrismarineJS/update](https://github.com/PrismarineJS/node-nethernet/commit/35da44658b2c3d28648f8580521b4447e3844f3b) (thanks @extremeheat)
+* [Document WebRTC API and expand platform validation](https://github.com/PrismarineJS/node-nethernet/commit/af5bb85dde89d88dd48ecbd412d2d11d91dcebbc) (thanks @extremeheat)
+* [Bound discovery and harden connection cleanup and retries](https://github.com/PrismarineJS/node-nethernet/commit/822cb5c317f2196f192978bce870586cb0af48d7) (thanks @extremeheat)
+* [Fix WebRTC configuration and type declarations](https://github.com/PrismarineJS/node-nethernet/commit/4365c1cc54dbd61dec76fab049e0ddbf6bd5a5ce) (thanks @extremeheat)
+* [Merge remote-tracking branch 'origin/master' into update](https://github.com/PrismarineJS/node-nethernet/commit/d4aea3194b01d541ad266a175ac878e053e5f4eb) (thanks @extremeheat)
+* [Improve reliability of the WebRTC signalling flow](https://github.com/PrismarineJS/node-nethernet/commit/bba297584bb8d548c1cbeef4733165f45d94084c) (thanks @LucienHH)
+* [Add signaling error codes and connection close hooks](https://github.com/PrismarineJS/node-nethernet/commit/10a48821548d7fb4f434e9cf976192ed27e4994c) (thanks @LucienHH)
+* [Merge pull request #12 from PrismarineJS/dependabot/npm_and_yarn/mocha-11.7.5](https://github.com/PrismarineJS/node-nethernet/commit/e303592dd14eaedef5a5fd192be92f57d8b0f15c) (thanks @rom1504)
+* [Bump mocha from 10.8.2 to 11.7.5](https://github.com/PrismarineJS/node-nethernet/commit/d3cbc1bec403b2899c62def2ec4e0b8bab90d829) (thanks @dependabot[bot])
+
 ### 0.1.0
 * [Update CI to Node 24 (#10)](https://github.com/PrismarineJS/node-nethernet/commit/bbd59e2895a48454682df7eee460ff080f4e7df7) (thanks @rom1504)
 * [Fix publish workflow for trusted publishing (#9)](https://github.com/PrismarineJS/node-nethernet/commit/63351452f0a4bffdf6c011f155dced9140369ceb) (thanks @rom1504)
