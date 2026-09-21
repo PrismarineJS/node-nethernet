@@ -48,6 +48,12 @@ and `error`. `connect()` returns immediately; it is not a promise for connection
 
 Client options:
 
+- `identity`: optional `{ privateKey, token, domain? }` used to sign the SDP offer.
+  `privateKey` must be an EC P-384 private KeyObject, PEM string, or PEM Buffer,
+  matching the multiplayer token’s `cpk` public-key claim. `domain` defaults to an empty string.
+  The caller obtains the token; this library does not authenticate the account.
+  You can assign `client.identity` after authentication, before calling `connect()`.
+  Signing failures abort negotiation and report an error; they do not send an unsigned offer.
 - `networkId`, `connectionId`: optional bigint IDs. A retry uses a fresh connection ID.
 - `iceServers` (or `credentials`, which takes precedence): string STUN/TURN URLs or
   objects such as `{ urls: 'turn:relay.example.com:3478', username: 'user', credential: 'secret' }`.
