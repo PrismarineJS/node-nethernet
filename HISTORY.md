@@ -1,5 +1,10 @@
 ## History
 
+### 1.1.0
+* [Add optional a=identity assertion for realm/Xbox connections (#19)](https://github.com/PrismarineJS/node-nethernet/commit/10b30e8ce8d0cb327b3991593ab98219891ea4b7) (thanks @Pix3lPirat3)
+* [revert](https://github.com/PrismarineJS/node-nethernet/commit/bcee1b91ec5cf573946b5c83c9d38aa73932ab34) (thanks @extremeheat)
+* [Replace npm-publish action with npm publish command](https://github.com/PrismarineJS/node-nethernet/commit/102aa51d67e045cf8aca6e7dedf1deb8fb0557c2) (thanks @extremeheat)
+
 ### 1.0.0
 * [Merge pull request #18 from PrismarineJS/update](https://github.com/PrismarineJS/node-nethernet/commit/35da44658b2c3d28648f8580521b4447e3844f3b) (thanks @extremeheat)
 * [Document WebRTC API and expand platform validation](https://github.com/PrismarineJS/node-nethernet/commit/af5bb85dde89d88dd48ecbd412d2d11d91dcebbc) (thanks @extremeheat)
