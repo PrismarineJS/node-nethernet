@@ -1,5 +1,8 @@
 const { encrypt, calculateChecksum, decrypt } = require('./crypto')
 
+// Outer length + type + sender + reserved + recipient + string length.
+const DISCOVERY_MESSAGE_DATA_OFFSET = 2 + 2 + 8 + 8 + 8 + 4
+
 const getRandomUint64 = () => {
   const high = Math.floor(Math.random() * 0xFFFFFFFF)
   const low = Math.floor(Math.random() * 0xFFFFFFFF)
@@ -62,8 +65,18 @@ const processSecurePacket = (buffer, deserializer) => {
   }
 
   const packet = deserializer.parsePacketBuffer(decryptedData)
+  const { name, params } = packet.data
 
-  return { name: packet.data.name, params: packet.data.params }
+  // Retail LAN hosts can undercount the length of an inline-candidate SDP answer
+  // (#23). Recover its tail from this checksum-validated datagram only.
+  if (name === 'discovery_message' && params.data.startsWith('CONNECTRESPONSE ') && packet.metadata.size < decryptedData.length) {
+    const data = decryptedData.subarray(DISCOVERY_MESSAGE_DATA_OFFSET)
+    // SDP has no NUL bytes. An appended discovery frame does (its uint16 type),
+    // so do not absorb binary framing into the answer. This is not batch parsing.
+    if (!data.includes(0)) params.data = data.toString('utf8')
+  }
+
+  return { name, params }
 }
 
 module.exports = {
