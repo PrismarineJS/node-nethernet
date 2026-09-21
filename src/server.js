@@ -343,7 +343,7 @@ class Server extends EventEmitter {
     await new Promise((resolve, reject) => {
       const failFn = e => reject(e)
       this.socket.once('error', failFn)
-      this.socket.bind(7551, () => {
+      this.socket.bind(7551, this.options.host ?? '0.0.0.0', () => {
         this.socket.removeListener('error', failFn)
         resolve(true)
       })
