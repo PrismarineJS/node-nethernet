@@ -19,7 +19,7 @@ jobs:
         node-version: 24
         registry-url: 'https://registry.npmjs.org'
     - id: publish
-      uses: JS-DevTools/npm-publish@v4
+      run: npm publish
     - name: Create Release
       if: ${{ steps.publish.outputs.type }}
       id: create_release
