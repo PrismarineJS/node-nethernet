@@ -8,13 +8,15 @@ const AES_KEY = crypto.createHash('sha256')
   .digest()
 
 function encrypt (data) {
-  const cipher = crypto.createCipheriv('aes-256-ecb', AES_KEY, null)
-  return Buffer.concat([cipher.update(data), cipher.final()])
+  const iv = crypto.randomBytes(16)
+  const cipher = crypto.createCipheriv('aes-256-cbc', AES_KEY, iv)
+  return Buffer.concat([iv, cipher.update(data), cipher.final()])
 }
 
 function decrypt (data) {
-  const decipher = crypto.createDecipheriv('aes-256-ecb', AES_KEY, null)
-  return Buffer.concat([decipher.update(data), decipher.final()])
+  const iv = data.subarray(0, 16)
+  const decipher = crypto.createDecipheriv('aes-256-cbc', AES_KEY, iv)
+  return Buffer.concat([decipher.update(data.subarray(16)), decipher.final()])
 }
 
 function calculateChecksum (data) {
