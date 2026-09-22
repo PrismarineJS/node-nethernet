@@ -1,5 +1,11 @@
 ## History
 
+### 1.1.2
+* [Organize protocol datatypes, transforms and Werift code (#30)](https://github.com/PrismarineJS/node-nethernet/commit/2838fda44ccf9c57c46c8a90f3990759aab68b48) (thanks @extremeheat)
+* [Follow TURN 300 Try Alternate redirect for Realm connections (#29)](https://github.com/PrismarineJS/node-nethernet/commit/e5bb87522093ed72e9eef39392b86e7686932e86) (thanks @Pix3lPirat3)
+* [Default to Werift with an optional native WebRTC backend (#28)](https://github.com/PrismarineJS/node-nethernet/commit/eae7c8eb4fcef6f4dde8b0ef25717f2e0051ed1f) (thanks @extremeheat)
+* [Honor the server discovery bind address (#27)](https://github.com/PrismarineJS/node-nethernet/commit/5e00696b90507edf5d81a124c129992488225d9e) (thanks @extremeheat)
+
 ### 1.1.1
 * [Recover undercounted discovery_message signals (#25)](https://github.com/PrismarineJS/node-nethernet/commit/1b150f1eb8a9ba31e98e3c9bbe51d30977122845) (thanks @Pix3lPirat3)
 
