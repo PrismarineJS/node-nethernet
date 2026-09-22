@@ -5,7 +5,6 @@ const { Connection } = require('./connection')
 const { ErrorCode, SignalType, SignalStructure } = require('./signalling')
 
 const { getRandomUint64, normalizeIceServers, validateIceServers, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
-const { resolveTurnRedirects } = require('./turnRedirect')
 const { getWebRTC } = require('./webrtc')
 const { PACKET_TYPE, createSerializer, createDeserializer } = require('./serializer')
 
@@ -124,6 +123,7 @@ class Client extends EventEmitter {
   }
 
   clearNegotiationTimeouts () {
+    this._offerController?.abort()
     if (this._negotiationTimeout) {
       clearTimeout(this._negotiationTimeout)
       this._negotiationTimeout = null
@@ -216,24 +216,19 @@ class Client extends EventEmitter {
   }
 
   async createOffer () {
-    // Follow a TURN "300 Try Alternate" redirect before building the peer connection. Microsoft's Realm relay redirects
-    // the initial Allocate to a regional relay; the werift backend does not follow it, so pre-resolve the alternate here
-    // and hand werift the redirected URL (native backends already follow it and are unaffected). Best-effort: on any
-    // probe failure the original ICE servers are used unchanged. See turnRedirect.js. Only awaited when there is a plain
-    // turn: server to probe, so configs without one (stun-only, or an invalid config) keep createOffer's synchronous
-    // error path intact.
+    if (this._closed) return
+    this._offerController?.abort()
+    const controller = new AbortController()
+    this._offerController = controller
     try {
-      const normalized = normalizeIceServers(this.credentials)
-      const hasPlainTurn = normalized.some(s => s && (Array.isArray(s.urls) ? s.urls : [s.urls]).some(u => typeof u === 'string' && /^turn:/i.test(u)))
-      if (hasPlainTurn) this.credentials = await resolveTurnRedirects(normalized)
+      let iceServers = validateIceServers(normalizeIceServers(this.credentials))
+      if (this.webrtc.resolveIceServers) {
+        iceServers = await this.webrtc.resolveIceServers(iceServers, { signal: controller.signal })
+      }
+      if (controller.signal.aborted || this._closed) return
+      this.rtcConnection = new this.webrtc.RTCPeerConnection({ iceServers })
     } catch (err) {
-      debug('TURN redirect pre-resolve skipped, using original ICE servers:', err)
-    }
-    debug('Creating RTCPeerConnection with ICE servers:', this.credentials)
-
-    try {
-      this.rtcConnection = new this.webrtc.RTCPeerConnection({ iceServers: validateIceServers(normalizeIceServers(this.credentials)) })
-    } catch (err) {
+      if (controller.signal.aborted || this._closed) return
       debug('Failed to create RTCPeerConnection:', err)
       this.failNegotiation(this.serverNetworkId, ErrorCode.FailedToCreatePeerConnection)
       this.reportError(new Error(`Failed to create peer connection: ${err.message}`))

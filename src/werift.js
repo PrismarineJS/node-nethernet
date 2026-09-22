@@ -1,4 +1,5 @@
 const { RTCPeerConnection } = require('werift')
+const { resolveTurnRedirects } = require('./turnRedirect')
 
 class WeriftPeerConnection extends RTCPeerConnection {
   createDataChannel (label, options) {
@@ -49,4 +50,4 @@ class WeriftPeerConnection extends RTCPeerConnection {
   }
 }
 
-module.exports = { RTCPeerConnection: WeriftPeerConnection }
+module.exports = { RTCPeerConnection: WeriftPeerConnection, resolveIceServers: resolveTurnRedirects }

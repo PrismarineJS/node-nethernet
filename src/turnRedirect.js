@@ -1,81 +1,110 @@
-'use strict'
-// TURN "300 Try Alternate" pre-resolution (PoC).
-//
-// Microsoft's Realm relay (gateway-world.az.relay.communications.svc.cloud.microsoft) answers the initial TURN Allocate
-// with STUN error 300 "Try Alternate" + an ALTERNATE-SERVER, redirecting the client to a regional relay. Native
-// libwebrtc (@roamhq/wrtc) follows the redirect; the pure-JS werift backend does not, so on werift the allocation fails,
-// no relay candidate is gathered, and the Realm connection times out.
-//
-// This resolves the redirect at the node-nethernet layer using only werift's SUPPORTED iceServers config: send one
-// unauthenticated Allocate to each TURN server, and if it answers 300 + ALTERNATE-SERVER, rewrite the iceServer URL to
-// point straight at the alternate. werift then does its normal (working) 401 auth handshake against the alternate.
-// No werift internals are touched. Best-effort: any probe failure leaves the original URL unchanged.
-const dgram = require('dgram')
-const crypto = require('crypto')
+const dgram = require('node:dgram')
+const { randomBytes } = require('node:crypto')
+const { isIP } = require('node:net')
+
 const MAGIC = 0x2112a442
+const ALLOCATE_ERROR = 0x0113
+const ERROR_CODE = 0x0009
+const ALTERNATE_SERVER = 0x8023
+const PROBE_TIMEOUT_MS = 3000
 
-function buildAllocate () {
-  const tid = crypto.randomBytes(12)
-  const attr = Buffer.from([0x00, 0x19, 0x00, 0x04, 17, 0x00, 0x00, 0x00]) // REQUESTED-TRANSPORT = UDP
-  const header = Buffer.alloc(20)
-  header.writeUInt16BE(0x0003, 0) // Allocate request
-  header.writeUInt16BE(attr.length, 2)
-  header.writeUInt32BE(MAGIC, 4)
-  tid.copy(header, 8)
-  return Buffer.concat([header, attr])
+// Only IPv4 UDP TURN is handled here. TCP/TLS and IPv6 stay with the backend.
+function parseTurnUrl (url) {
+  if (typeof url !== 'string') return null
+  const match = /^turn:([^:/?]+)(?::(\d+))?(\?transport=udp)?$/i.exec(url)
+  if (!match || match[1].includes('[')) return null
+  const port = Number(match[2] || 3478)
+  if (port < 1 || port > 65535) return null
+  return { host: match[1], port, query: match[3] || '' }
 }
 
-function parseAttrs (msg) {
-  const out = {}
-  const mlen = msg.readUInt16BE(2)
-  let off = 20
-  while (off + 4 <= 20 + mlen) {
-    const type = msg.readUInt16BE(off)
-    const len = msg.readUInt16BE(off + 2)
-    const val = msg.slice(off + 4, off + 4 + len)
-    if (type === 0x0009 && val.length >= 4) { // ERROR-CODE
-      out.errorCode = (val[2] & 0x07) * 100 + val[3]
-    } else if (type === 0x8023 && val.length >= 8) { // ALTERNATE-SERVER (MAPPED-ADDRESS format, not XOR'd)
-      const family = val[1]
-      if (family === 0x01) out.alternate = { ip: Array.from(val.slice(4, 8)).join('.'), port: val.readUInt16BE(2) }
+function parseRedirect (msg, request) {
+  if (msg.length < 20 || msg.readUInt16BE(0) !== ALLOCATE_ERROR ||
+      msg.readUInt32BE(4) !== MAGIC || !msg.subarray(8, 20).equals(request.subarray(8, 20))) return
+  const length = msg.readUInt16BE(2)
+  if (length % 4 || length + 20 !== msg.length) return
+  let code
+  let alternate
+  for (let offset = 20; offset < msg.length;) {
+    if (offset + 4 > msg.length) return
+    const type = msg.readUInt16BE(offset)
+    const size = msg.readUInt16BE(offset + 2)
+    const end = offset + 4 + size
+    const next = end + ((4 - size % 4) % 4)
+    if (next > msg.length) return
+    const value = msg.subarray(offset + 4, end)
+    if (type === ERROR_CODE) {
+      if (size < 4) return
+      code = (value[2] & 7) * 100 + value[3]
+    } else if (type === ALTERNATE_SERVER) {
+      if (size === 8 && value[1] === 1) {
+        alternate = { ip: [...value.subarray(4)].join('.'), port: value.readUInt16BE(2) }
+      }
     }
-    off += 4 + len + ((4 - (len % 4)) % 4)
+    offset = next
   }
-  return out
+  if (code === undefined) return
+  // null means a matched response without a usable redirect; undefined is invalid.
+  return code === 300 && alternate?.port ? alternate : null
 }
 
-function probeTurnAlternate (host, port, timeoutMs = 3000) {
-  return new Promise((resolve) => {
+function probeTurnAlternate (host, port, { timeoutMs = PROBE_TIMEOUT_MS, signal } = {}) {
+  if (signal?.aborted || isIP(host) === 6) return Promise.resolve(null)
+  const request = Buffer.alloc(28)
+  request.writeUInt16BE(3, 0) // Allocate request
+  request.writeUInt16BE(8, 2)
+  request.writeUInt32BE(MAGIC, 4)
+  randomBytes(12).copy(request, 8)
+  request.writeUInt16BE(0x0019, 20) // REQUESTED-TRANSPORT: UDP relay allocation
+  request.writeUInt16BE(4, 22)
+  request[24] = 17
+
+  return new Promise(resolve => {
+    const socket = dgram.createSocket('udp4')
     let done = false
-    const sock = dgram.createSocket('udp4')
-    const finish = (r) => { if (done) return; done = true; try { sock.close() } catch {} resolve(r) }
+    const finish = result => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
+      try { socket.close() } catch (error) {
+        if (error.code !== 'ERR_SOCKET_DGRAM_NOT_RUNNING') throw error
+      }
+      resolve(result)
+    }
+    const onAbort = () => finish(null)
     const timer = setTimeout(() => finish(null), timeoutMs)
-    sock.on('message', (msg) => { clearTimeout(timer); try { const a = parseAttrs(msg); finish(a.errorCode === 300 && a.alternate ? a.alternate : null) } catch { finish(null) } })
-    sock.on('error', () => { clearTimeout(timer); finish(null) })
-    try { sock.send(buildAllocate(), port, host) } catch { finish(null) }
+    signal?.addEventListener('abort', onAbort, { once: true })
+    socket.on('error', () => finish(null))
+    socket.on('message', msg => {
+      const result = parseRedirect(msg, request)
+      if (result !== undefined) finish(result)
+    })
+    // Connecting filters packets from other endpoints, including different ports.
+    try {
+      socket.connect(port, host, () => {
+        if (!done) socket.send(request, error => { if (error) finish(null) })
+      })
+    } catch {
+      finish(null)
+    }
   })
 }
 
-// Rewrite each plain-UDP `turn:` server that redirects via 300 to point at its ALTERNATE-SERVER. `turns:` (TLS) and
-// `stun:` entries are left untouched. Results are cached per host:port so repeated connects probe at most once.
-async function resolveTurnRedirects (iceServers, { timeoutMs = 3000, cache = resolveTurnRedirects._cache } = {}) {
-  const out = []
-  for (const server of iceServers || []) {
+// Werift does not follow the Realm gateway's TURN 300 redirect. Resolve it using
+// an unauthenticated probe, then let Werift authenticate with the alternate.
+// Do not cache: gateway assignments and network failures can change between joins.
+async function resolveTurnRedirects (iceServers, options = {}) {
+  return Promise.all(iceServers.map(async server => {
     const urls = Array.isArray(server.urls) ? server.urls : [server.urls]
-    const rewritten = []
-    for (const url of urls) {
-      const m = /^turn:([^:/?]+)(?::(\d+))?(\?.*)?$/i.exec(url || '')
-      if (!m) { rewritten.push(url); continue }
-      const host = m[1]; const port = Number(m[2] || 3478); const query = m[3] || ''
-      const key = host + ':' + port
-      let alt = cache.get(key)
-      if (alt === undefined) { alt = await probeTurnAlternate(host, port, timeoutMs); cache.set(key, alt) }
-      rewritten.push(alt ? `turn:${alt.ip}:${alt.port}${query}` : url)
-    }
-    out.push({ ...server, urls: rewritten.length === 1 ? rewritten[0] : rewritten })
-  }
-  return out
+    const rewritten = await Promise.all(urls.map(async url => {
+      const target = parseTurnUrl(url)
+      if (!target) return url
+      const alternate = await probeTurnAlternate(target.host, target.port, options)
+      return alternate ? `turn:${alternate.ip}:${alternate.port}${target.query}` : url
+    }))
+    return { ...server, urls: Array.isArray(server.urls) ? rewritten : rewritten[0] }
+  }))
 }
-resolveTurnRedirects._cache = new Map()
 
 module.exports = { resolveTurnRedirects, probeTurnAlternate }
