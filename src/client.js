@@ -1,3 +1,4 @@
+const { exchangeOffer, signallingUrl } = require('./http')
 const { attachIdentity } = require('./identity')
 const dgram = require('node:dgram')
 const { EventEmitter } = require('node:events')
@@ -20,6 +21,7 @@ class Client extends EventEmitter {
   constructor (networkId, broadcastAddress = BROADCAST_ADDRESS, options = {}) {
     super()
 
+    this.http = options.http && { ...options.http, url: signallingUrl(options.http.url) }
     this.webrtc = getWebRTC(options.webrtcBackend)
 
     this.serverNetworkId = networkId
@@ -59,15 +61,14 @@ class Client extends EventEmitter {
 
     this._signalHandler = this.sendDiscoveryMessage.bind(this)
 
-    this.sendDiscoveryRequest()
-
-    this.pingInterval = setInterval(() => {
+    if (!this.http) {
       this.sendDiscoveryRequest()
-    }, 2000)
+      this.pingInterval = setInterval(() => this.sendDiscoveryRequest(), 2000)
+    }
 
     this._hasEmittedConnected = false
     this._pendingConnect = false
-    this._externalSignaling = false
+    this._externalSignaling = Boolean(this.http)
     this._negotiationTimeout = null
   }
 
@@ -241,7 +242,7 @@ class Client extends EventEmitter {
     const isCurrent = () => !this._closed && this.connection === connection && !connection.closed
 
     rtcConnection.onicecandidate = (event) => {
-      if (event.candidate && isCurrent()) {
+      if (!this.http && event.candidate && isCurrent()) {
         debug('Sending CandidateAdd to networkId:', this.serverNetworkId)
         const signal = new SignalStructure(SignalType.CandidateAdd, this.connectionId, event.candidate.candidate, this.serverNetworkId)
 
@@ -301,6 +302,21 @@ class Client extends EventEmitter {
       debug('Failed to set local description:', err)
       this.failNegotiation(this.serverNetworkId, ErrorCode.FailedToSetLocalDescription)
       this.reportError(new Error(`Failed to set local description: ${err.message}`))
+      return
+    }
+
+    if (this.http) {
+      try {
+        const sdp = await exchangeOffer(this, controller.signal)
+        if (isCurrent()) await this.handleAnswer({ data: sdp, networkId: this.serverNetworkId })
+      } catch (err) {
+        if (!isCurrent() || controller.signal.aborted) return
+        try {
+          this.reportError(err)
+        } finally {
+          this.close('HTTP signalling failed')
+        }
+      }
       return
     }
 

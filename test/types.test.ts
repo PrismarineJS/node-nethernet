@@ -1,5 +1,5 @@
 import { generateKeyPairSync } from 'node:crypto'
-import { Client, Connection, ErrorCode, IceServer, Server, SignalStructure, SignalType } from 'nethernet'
+import { pingHttp, Client, Connection, ErrorCode, IceServer, Server, SignalStructure, SignalType } from 'nethernet'
 
 const iceServer: IceServer = {
   urls: ['stun:stun.example.com:3478'],
@@ -54,3 +54,13 @@ new Server({ host: '127.0.0.1' })
 new Server({ webrtcBackend: 'wrtc' })
 // @ts-expect-error Unknown backend
 new Client(1n, undefined, { webrtcBackend: 'unknown' })
+
+const httpClient = new Client(0n, undefined, {
+  http: { url: 'https://server.example.com', onServerKey: async (key, origin) => key.startsWith('sha256:') && origin === 'https://server.example.com' },
+  responseTimeoutMs: 5000
+})
+void httpClient
+void pingHttp('http://localhost:19132').then(ad => {
+  const protocol: number | undefined = ad.protocol
+  return protocol
+})

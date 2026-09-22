@@ -1,3 +1,4 @@
+const { pingHttp } = require('./src/http')
 const { Client } = require('./src/client')
 const { Server } = require('./src/server')
 const { ErrorCode, SignalStructure } = require('./src/signalling')
@@ -11,6 +12,7 @@ const SignalType = {
 
 module.exports = {
   Client,
+  pingHttp,
   ErrorCode,
   Server,
   SignalType,
