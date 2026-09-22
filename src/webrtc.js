@@ -11,7 +11,7 @@ function getWebRTC (backend = 'werift') {
       }
     }
   }
-  return require('./backends/werift')
+  return require('./werift')
 }
 
 module.exports = { getWebRTC }
