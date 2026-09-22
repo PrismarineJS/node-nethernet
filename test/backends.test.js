@@ -41,6 +41,8 @@ describe('WebRTC backends', function () {
   if (process.env.TEST_NATIVE_WEBRTC) {
     it('auto selects an installed native backend', () => {
       assert.equal(getWebRTC('auto'), require('@roamhq/wrtc'))
+      assert.equal(getWebRTC('auto').resolveIceServers, undefined)
+      assert.equal(getWebRTC('wrtc').resolveIceServers, undefined)
     })
   }
 

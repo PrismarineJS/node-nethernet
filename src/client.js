@@ -123,6 +123,7 @@ class Client extends EventEmitter {
   }
 
   clearNegotiationTimeouts () {
+    this._offerController?.abort()
     if (this._negotiationTimeout) {
       clearTimeout(this._negotiationTimeout)
       this._negotiationTimeout = null
@@ -215,11 +216,19 @@ class Client extends EventEmitter {
   }
 
   async createOffer () {
-    debug('Creating RTCPeerConnection with ICE servers:', this.credentials)
-
+    if (this._closed) return
+    this._offerController?.abort()
+    const controller = new AbortController()
+    this._offerController = controller
     try {
-      this.rtcConnection = new this.webrtc.RTCPeerConnection({ iceServers: validateIceServers(normalizeIceServers(this.credentials)) })
+      let iceServers = validateIceServers(normalizeIceServers(this.credentials))
+      if (this.webrtc.resolveIceServers) {
+        iceServers = await this.webrtc.resolveIceServers(iceServers, { signal: controller.signal })
+      }
+      if (controller.signal.aborted || this._closed) return
+      this.rtcConnection = new this.webrtc.RTCPeerConnection({ iceServers })
     } catch (err) {
+      if (controller.signal.aborted || this._closed) return
       debug('Failed to create RTCPeerConnection:', err)
       this.failNegotiation(this.serverNetworkId, ErrorCode.FailedToCreatePeerConnection)
       this.reportError(new Error(`Failed to create peer connection: ${err.message}`))

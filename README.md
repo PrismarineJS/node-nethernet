@@ -113,6 +113,11 @@ backends or retry a connection through another implementation.
 Werift's `setLocalDescription()` waits for ICE gathering. NetherNet sends the
 resulting SDP with its gathered candidates, in addition to candidate signals.
 Backend-specific compatibility handling is isolated in `src/werift.js`.
+For Werift clients, IPv4 UDP `turn:` URLs are probed for the Realm gateway's
+`300 Try Alternate` redirect before creating the peer. Each probe waits at most
+3 seconds (bounded by the connection attempt's lifetime); failures preserve the
+original URL. Redirects are refreshed on every join rather than cached. TCP,
+TLS and IPv6 TURN URLs, and the native backend, bypass this workaround.
 
 `npm test` runs lint, strict TypeScript checks, and runtime tests without forcing
 process exit. Tests cover local transport, signalling errors, cancellation, and
