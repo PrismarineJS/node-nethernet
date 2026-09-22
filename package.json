@@ -1,7 +1,7 @@
 {
   "name": "nethernet",
   "version": "1.1.2",
-  "description": "(WIP) Minecraft Bedrock nethernet protocol",
+  "description": "Library for the Minecraft Bedrock nethernet protocol",
   "main": "index.js",
   "scripts": {
     "test": "mocha --reporter spec",
