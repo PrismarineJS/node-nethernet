@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const dgram = require('node:dgram')
 const { once } = require('node:events')
 const { setTimeout: delay } = require('node:timers/promises')
-const { resolveTurnRedirects, probeTurnAlternate } = require('../src/turnRedirect')
+const { resolveTurnRedirects, probeTurnAlternate } = require('../src/werift/turnRedirect')
 const { Client } = require('../src/client')
 
 function response (request, code = 300, ip = [192, 0, 2, 10]) {

@@ -6,7 +6,7 @@ const { ErrorCode, SignalType, SignalStructure } = require('./signalling')
 
 const { getRandomUint64, normalizeIceServers, validateIceServers, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
 const { getWebRTC } = require('./webrtc')
-const { PACKET_TYPE, createSerializer, createDeserializer } = require('./serializer')
+const { PACKET_TYPE, createSerializer, createDeserializer } = require('./transforms/serializer')
 
 const debug = require('debug')('nethernet')
 

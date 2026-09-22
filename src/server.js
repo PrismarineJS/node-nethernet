@@ -5,7 +5,7 @@ const { getWebRTC } = require('./webrtc')
 const { Connection } = require('./connection')
 const { ErrorCode, SignalStructure, SignalType } = require('./signalling')
 
-const { PACKET_TYPE, createSerializer, createDeserializer } = require('./serializer')
+const { PACKET_TYPE, createSerializer, createDeserializer } = require('./transforms/serializer')
 
 const { getRandomUint64, normalizeIceServers, validateIceServers, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
 
