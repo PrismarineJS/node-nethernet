@@ -1,6 +1,6 @@
 const { ProtoDefCompiler } = require('protodef').Compiler
 const { FullPacketParser, Serializer } = require('protodef')
-const protocol = require('./protocol.json')
+const protocol = require('../datatypes/protocol.json')
 
 const PACKET_TYPE = {
   DISCOVERY_REQUEST: 0,
@@ -11,7 +11,7 @@ const PACKET_TYPE = {
 function createProtocol () {
   const compiler = new ProtoDefCompiler()
   compiler.addTypesToCompile(protocol.types)
-  compiler.addTypes(require('./compilerTypes'))
+  compiler.addTypes(require('../datatypes/compiler'))
 
   const compiledProto = compiler.compileProtoDefSync()
   return compiledProto

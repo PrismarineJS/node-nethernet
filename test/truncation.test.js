@@ -5,7 +5,7 @@
 // (no real identity assertions or ICE credentials): a valid packet is built with our own serializer, then its length
 // prefixes are deliberately shortened to reproduce the undercount without any fragmentation machinery.
 const assert = require('assert')
-const { createSerializer, createDeserializer } = require('../src/serializer')
+const { createSerializer, createDeserializer } = require('../src/transforms/serializer')
 const { encrypt, calculateChecksum } = require('../src/crypto')
 const { createPacketData, processSecurePacket } = require('../src/util')
 
