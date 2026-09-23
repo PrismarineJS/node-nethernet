@@ -5,8 +5,8 @@ const { once } = require('events')
 const { generateKeyPairSync } = require('crypto')
 const JWT = require('jsonwebtoken')
 const { Client, pingHttp } = require('..')
-const { verifyServerIdentity } = require('../src/identity')
-const { signallingUrl } = require('../src/http')
+const { verifyServerIdentity } = require('../src/signalling/sdpIdentity')
+const { signallingUrl } = require('../src/signalling/http')
 
 const keys = generateKeyPairSync('ec', { namedCurve: 'secp384r1' })
 const digest = 'AA:BB:CC:DD'

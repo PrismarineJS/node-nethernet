@@ -1,7 +1,7 @@
-const { pingHttp } = require('./src/http')
+const { pingHttp } = require('./src/signalling/http')
 const { Client } = require('./src/client')
 const { Server } = require('./src/server')
-const { ErrorCode, SignalStructure } = require('./src/signalling')
+const { ErrorCode, SignalStructure } = require('./src/signalling/messages')
 
 const SignalType = {
   ConnectRequest: 'CONNECTREQUEST',

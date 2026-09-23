@@ -1,5 +1,5 @@
 const { once } = require('node:events')
-const { attachIdentity, verifyServerIdentity } = require('./identity')
+const { attachIdentity, verifyServerIdentity } = require('./sdpIdentity')
 
 function signallingUrl (origin) {
   const url = new URL(origin)

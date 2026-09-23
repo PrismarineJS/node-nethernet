@@ -9,6 +9,9 @@
 
 A Node.js 24+ implementation of the NetherNet protocol.
 
+See [Architecture](ARCHITECTURE.md) for the connection flow, signalling modes,
+and a guide to the source code.
+
 ## Install
 
 ```sh

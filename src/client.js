@@ -1,11 +1,12 @@
-const { exchangeOffer, signallingUrl } = require('./http')
-const { attachIdentity } = require('./identity')
+const { exchangeOffer, signallingUrl } = require('./signalling/http')
+const { attachIdentity } = require('./signalling/sdpIdentity')
 const dgram = require('node:dgram')
 const { EventEmitter } = require('node:events')
 const { Connection } = require('./connection')
-const { ErrorCode, SignalType, SignalStructure } = require('./signalling')
+const { ErrorCode, SignalType, SignalStructure } = require('./signalling/messages')
 
-const { getRandomUint64, normalizeIceServers, validateIceServers, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
+const { getRandomUint64, normalizeIceServers, validateIceServers } = require('./util')
+const { createPacketData, prepareSecurePacket, processSecurePacket } = require('./signalling/lan')
 const { getWebRTC } = require('./webrtc')
 const { PACKET_TYPE, createSerializer, createDeserializer } = require('./transforms/serializer')
 

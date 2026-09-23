@@ -3,11 +3,12 @@ const { EventEmitter } = require('node:events')
 const { getWebRTC } = require('./webrtc')
 
 const { Connection } = require('./connection')
-const { ErrorCode, SignalStructure, SignalType } = require('./signalling')
+const { ErrorCode, SignalStructure, SignalType } = require('./signalling/messages')
 
 const { PACKET_TYPE, createSerializer, createDeserializer } = require('./transforms/serializer')
 
-const { getRandomUint64, normalizeIceServers, validateIceServers, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
+const { getRandomUint64, normalizeIceServers, validateIceServers } = require('./util')
+const { createPacketData, prepareSecurePacket, processSecurePacket } = require('./signalling/lan')
 
 const debug = require('debug')('nethernet')
 const DEFAULT_ACCEPT_TIMEOUT_MS = 5_000
