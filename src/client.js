@@ -1,11 +1,12 @@
+const { attachIdentity } = require('./identity')
 const dgram = require('node:dgram')
 const { EventEmitter } = require('node:events')
 const { Connection } = require('./connection')
 const { ErrorCode, SignalType, SignalStructure } = require('./signalling')
 
 const { getRandomUint64, normalizeIceServers, validateIceServers, createPacketData, prepareSecurePacket, processSecurePacket } = require('./util')
-const { RTCPeerConnection, RTCSessionDescription, RTCIceCandidate } = require('@roamhq/wrtc')
-const { PACKET_TYPE, createSerializer, createDeserializer } = require('./serializer')
+const { getWebRTC } = require('./webrtc')
+const { PACKET_TYPE, createSerializer, createDeserializer } = require('./transforms/serializer')
 
 const debug = require('debug')('nethernet')
 
@@ -18,6 +19,8 @@ const DEFAULT_INACTIVITY_TIMEOUT_MS = 5_000
 class Client extends EventEmitter {
   constructor (networkId, broadcastAddress = BROADCAST_ADDRESS, options = {}) {
     super()
+
+    this.webrtc = getWebRTC(options.webrtcBackend)
 
     this.serverNetworkId = networkId
 
@@ -50,6 +53,9 @@ class Client extends EventEmitter {
     this.credentials = normalizeIceServers(options.credentials ?? options.iceServers)
     this.responseTimeoutMs = options.responseTimeoutMs ?? DEFAULT_RESPONSE_TIMEOUT_MS
     this.inactivityTimeoutMs = options.inactivityTimeoutMs ?? DEFAULT_INACTIVITY_TIMEOUT_MS
+    // Optional NetherNet identity assertion: { privateKey, token, domain }. When set, an a=identity attribute is
+    // attached to the offer SDP so realm/Xbox hosts admit the connection (missing it -> CONNECTERROR 37).
+    this.identity = options.identity
 
     this._signalHandler = this.sendDiscoveryMessage.bind(this)
 
@@ -117,6 +123,7 @@ class Client extends EventEmitter {
   }
 
   clearNegotiationTimeouts () {
+    this._offerController?.abort()
     if (this._negotiationTimeout) {
       clearTimeout(this._negotiationTimeout)
       this._negotiationTimeout = null
@@ -180,7 +187,7 @@ class Client extends EventEmitter {
         return
       }
 
-      const candidate = new RTCIceCandidate({ candidate: signal.data, sdpMid: '0', sdpMLineIndex: 0 })
+      const candidate = { candidate: signal.data, sdpMid: '0', sdpMLineIndex: 0 }
 
       await rtcConnection.addIceCandidate(candidate)
       debug('Added remote ICE candidate')
@@ -196,7 +203,7 @@ class Client extends EventEmitter {
     this.clearNegotiationTimeouts()
 
     try {
-      const answer = new RTCSessionDescription({ type: 'answer', sdp: signal.data })
+      const answer = { type: 'answer', sdp: signal.data }
       await rtcConnection.setRemoteDescription(answer)
       if (this._closed || this.rtcConnection !== rtcConnection) return
       debug('Set remote description (answer)')
@@ -209,11 +216,19 @@ class Client extends EventEmitter {
   }
 
   async createOffer () {
-    debug('Creating RTCPeerConnection with ICE servers:', this.credentials)
-
+    if (this._closed) return
+    this._offerController?.abort()
+    const controller = new AbortController()
+    this._offerController = controller
     try {
-      this.rtcConnection = new RTCPeerConnection({ iceServers: validateIceServers(normalizeIceServers(this.credentials)) })
+      let iceServers = validateIceServers(normalizeIceServers(this.credentials))
+      if (this.webrtc.resolveIceServers) {
+        iceServers = await this.webrtc.resolveIceServers(iceServers, { signal: controller.signal })
+      }
+      if (controller.signal.aborted || this._closed) return
+      this.rtcConnection = new this.webrtc.RTCPeerConnection({ iceServers })
     } catch (err) {
+      if (controller.signal.aborted || this._closed) return
       debug('Failed to create RTCPeerConnection:', err)
       this.failNegotiation(this.serverNetworkId, ErrorCode.FailedToCreatePeerConnection)
       this.reportError(new Error(`Failed to create peer connection: ${err.message}`))
@@ -291,9 +306,11 @@ class Client extends EventEmitter {
 
     try {
       const localDesc = this.rtcConnection.localDescription
+      let sdp = localDesc.sdp
+      if (this.identity) sdp = attachIdentity(sdp, this.identity)
 
       this._signalHandler(
-        new SignalStructure(SignalType.ConnectRequest, this.connectionId, localDesc.sdp, this.serverNetworkId)
+        new SignalStructure(SignalType.ConnectRequest, this.connectionId, sdp, this.serverNetworkId)
       )
     } catch (err) {
       debug('Failed to signal offer:', err)

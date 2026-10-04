@@ -1,11 +1,11 @@
 /// <reference lib="dom" />
+import { KeyObject } from 'node:crypto'
 import EventEmitter from 'node:events'
 import { RemoteInfo, Socket } from 'node:dgram'
 
 declare module 'nethernet' {
 
-  // wrtc implements the standard WebRTC API. Use its standard interfaces without
-  // importing wrtc's upstream declarations, which currently fail strict checking.
+  // Both backends expose the WebRTC interfaces used by NetherNet.
   export interface RTCPeerConnectionLike extends RTCPeerConnection {}
 
   export interface RTCDataChannelLike extends RTCDataChannel {}
@@ -48,7 +48,13 @@ declare module 'nethernet' {
     close(reason?: string): void;
   }
 
+  export type WebRTCBackend = 'werift' | 'wrtc' | 'auto'
+
   export interface ServerOptions {
+    /** Default: werift. auto prefers the optional native backend when loadable. */
+    webrtcBackend?: WebRTCBackend;
+    /** Local IPv4 address for UDP discovery (default: 0.0.0.0). Does not restrict ICE candidates. */
+    host?: string;
     networkId?: bigint;
     credentials?: (string | IceServer)[];
     iceServers?: (string | IceServer)[];
@@ -96,7 +102,16 @@ declare module 'nethernet' {
     error: (error: Error) => void;
   }
 
+  export interface Identity {
+    privateKey: KeyObject | string | Buffer;
+    token: string;
+    domain?: string;
+  }
+
   export interface ClientOptions {
+    /** Default: werift. auto prefers the optional native backend when loadable. */
+    webrtcBackend?: WebRTCBackend;
+    identity?: Identity;
     networkId?: bigint;
     connectionId?: bigint;
     credentials?: (string | IceServer)[];
@@ -106,6 +121,7 @@ declare module 'nethernet' {
   }
 
   export class Client extends EventEmitter {
+    identity?: Identity;
     serverNetworkId: bigint;
     broadcastAddress: string;
     networkId: bigint;

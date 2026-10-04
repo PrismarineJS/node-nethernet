@@ -1,5 +1,4 @@
 /* eslint-env mocha */
-process.env.DEBUG = '*'
 const { Server, Client } = require('nethernet')
 
 async function pingTest () {

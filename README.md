@@ -7,7 +7,7 @@
 [![Official Discord](https://img.shields.io/static/v1.svg?label=OFFICIAL&message=DISCORD&color=blue&logo=discord&style=for-the-badge)](https://discord.gg/GsEFRM8)
 
 
-A Node.JS implementation of the NetherNet protocol.
+A Node.js 24+ implementation of the NetherNet protocol.
 
 ## Install
 
@@ -48,6 +48,14 @@ and `error`. `connect()` returns immediately; it is not a promise for connection
 
 Client options:
 
+- `webrtcBackend`: `'werift'` (default), `'wrtc'`, or `'auto'`; also accepted by `Server`.
+
+- `identity`: optional `{ privateKey, token, domain? }` used to sign the SDP offer.
+  `privateKey` must be an EC P-384 private KeyObject, PEM string, or PEM Buffer,
+  matching the multiplayer token’s `cpk` public-key claim. `domain` defaults to an empty string.
+  The caller obtains the token; this library does not authenticate the account.
+  You can assign `client.identity` after authentication, before calling `connect()`.
+  Signing failures abort negotiation and report an error; they do not send an unsigned offer.
 - `networkId`, `connectionId`: optional bigint IDs. A retry uses a fresh connection ID.
 - `iceServers` (or `credentials`, which takes precedence): string STUN/TURN URLs or
   objects such as `{ urls: 'turn:relay.example.com:3478', username: 'user', credential: 'secret' }`.
@@ -85,15 +93,40 @@ currently supported. A server used only for external signalling need not call `l
 
 ## WebRTC API and validation
 
-Peer connections and data channels use `@roamhq/wrtc` and expose the standard
-WebRTC API (for example `connectionState`, `getStats()`, and `bufferedAmount`).
+Peer connections and data channels default to [Werift](https://github.com/shinyoshiaki/werift-webrtc),
+a pure JavaScript WebRTC stack. They expose the WebRTC API (for example `connectionState`, `getStats()`, and `bufferedAmount`).
 Type declarations use TypeScript's DOM interfaces; backend-specific extensions are
 not declared. The former `node-datachannel` methods are no longer supported.
+
+To use the optional native backend, install it explicitly:
+
+```sh
+npm install @roamhq/wrtc
+```
+
+Then set `webrtcBackend: 'wrtc'` on the client/server options. Selecting `'wrtc'`
+throws an actionable error if the native binding cannot load. `'auto'` tries the
+native backend and falls back to Werift only if loading fails. The default remains
+Werift even when the native package is installed. Negotiation errors do not switch
+backends or retry a connection through another implementation.
+
+Werift's `setLocalDescription()` waits for ICE gathering. NetherNet sends the
+resulting SDP with its gathered candidates, in addition to candidate signals.
+Backend-specific compatibility handling is isolated in `src/werift/`.
+For Werift clients, IPv4 UDP `turn:` URLs are probed for the Realm gateway's
+`300 Try Alternate` redirect before creating the peer. Each probe waits at most
+3 seconds (bounded by the connection attempt's lifetime); failures preserve the
+original URL. Redirects are refreshed on every join rather than cached. TCP,
+TLS and IPv6 TURN URLs, and the native backend, bypass this workaround.
 
 `npm test` runs lint, strict TypeScript checks, and runtime tests without forcing
 process exit. Tests cover local transport, signalling errors, cancellation, and
 resource cleanup. Live Minecraft/Realms and authenticated TURN interoperability
 still require testing against a real environment before release.
+
+Set `TEST_NATIVE_WEBRTC=1` to also run the Werift/native interoperability matrix
+(requires the development dependencies). CI tests both backends on Linux, macOS,
+and Windows. Normal consumers do not install the native optional peer automatically.
 
 ## Cryptographic limitation (CWE-327)
 
