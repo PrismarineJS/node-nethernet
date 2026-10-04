@@ -94,3 +94,21 @@ not declared. The former `node-datachannel` methods are no longer supported.
 process exit. Tests cover local transport, signalling errors, cancellation, and
 resource cleanup. Live Minecraft/Realms and authenticated TURN interoperability
 still require testing against a real environment before release.
+
+## Cryptographic limitation (CWE-327)
+
+`src/crypto.js` encrypts NetherNet discovery/signalling packets with AES-256-ECB
+using a fixed key derived from a hardcoded app ID. This is part of the NetherNet
+wire format defined by Mojang's real clients, not a bug in this library.
+
+It must **not** be replaced locally with CBC, GCM, CTR, or any scheme that
+prepends an IV: doing so changes the packet length and ciphertext bytes, which
+breaks interoperability with real Minecraft Bedrock clients and any other
+NetherNet-compatible implementation. (An earlier version of this PR made exactly
+that change and was reverted for this reason.)
+
+ECB mode on this fixed, structured data is a real cryptographic weakness
+(CWE-327), but it is a limitation inherited from the upstream protocol spec. A
+genuine fix requires a versioned, negotiated protocol change on Mojang's side so
+both peers agree on a stronger scheme — it cannot be fixed unilaterally in this
+library alone.
