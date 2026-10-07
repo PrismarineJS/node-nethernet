@@ -34,6 +34,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "jsonwebtoken": "^9.0.3",
     "protodef": "^1.19.0",
     "werift": "0.24.4"
   },

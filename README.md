@@ -9,6 +9,9 @@
 
 A Node.js 24+ implementation of the NetherNet protocol.
 
+See [Architecture](ARCHITECTURE.md) for the connection flow, signalling modes,
+and a guide to the source code.
+
 ## Install
 
 ```sh
@@ -127,3 +130,46 @@ still require testing against a real environment before release.
 Set `TEST_NATIVE_WEBRTC=1` to also run the Werift/native interoperability matrix
 (requires the development dependencies). CI tests both backends on Linux, macOS,
 and Windows. Normal consumers do not install the native optional peer automatically.
+
+### Direct HTTP signalling
+
+For a dedicated server exposing `/v1/join`, configure the client with an HTTP(S)
+origin. HTTP does not need the server's LAN network ID; pass `0n` instead.
+
+```js
+const { Client, pingHttp } = require('nethernet')
+
+const url = 'http://localhost:19132'
+const advertisement = await pingHttp(url, { timeout: 1000 })
+// Metadata (including protocol/version) is optional; raw is the original body.
+console.log(advertisement)
+
+const client = new Client(0n, undefined, {
+  http: { url, serverKey: process.env.BDS_SERVER_KEY },
+  identity: { privateKey, token }, // credentials supplied by your authentication layer
+  responseTimeoutMs: 15000
+})
+client.on('error', console.error)
+client.on('disconnect', (id, reason) => console.log(reason))
+client.connect()
+```
+
+The client gathers the complete ICE offer, signs its identity assertion, posts it,
+and verifies the server's identity token and signed DTLS fingerprints before using
+the answer. HTTP clients do not send LAN discovery or trickle-candidate messages.
+`responseTimeoutMs` covers offer/answer negotiation, including ICE gathering and key
+approval; `close()` cancels pending work. An exhausted negotiation deadline emits
+`disconnect`, as for LAN negotiation. HTTP response, identity and trust errors emit
+`error` and close the client.
+
+HTTPS uses Node's normal certificate verification. Plain HTTP additionally requires
+`serverKey`, or an `http.onServerKey(fingerprint, origin)` callback returning `true`
+(or a promise of `true`) to approve an unknown key. The fingerprint is `sha256:` plus
+the lowercase SHA-256 hex digest of the operator public key's DER SPKI encoding.
+A configured pin is enforced on HTTPS too, and a mismatch never calls the approval
+callback. Identity signatures are verified before asking for approval. Applications
+own user prompts and pin persistence; no unknown key is automatically trusted.
+
+`pingHttp()` only retrieves metadata; operator verification happens during connection
+setup. Redirects are rejected for both requests. Authentication, Minecraft version
+selection and HTTP server hosting are outside this API.

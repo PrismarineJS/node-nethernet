@@ -108,7 +108,31 @@ declare module 'nethernet' {
     domain?: string;
   }
 
+  export interface HttpOptions {
+    /** HTTP(S) origin, without a path, query, or credentials. */
+    url: string;
+    /** sha256:<lowercase hex> of the operator public key's DER SPKI. */
+    serverKey?: string;
+    /** Explicit approval for an unknown plain-HTTP key, after signature verification. */
+    onServerKey?: (fingerprint: string, origin: string) => boolean | Promise<boolean>;
+  }
+
+  export interface HttpAdvertisement {
+    name?: string;
+    protocol?: number;
+    version?: string;
+    level?: string;
+    players?: number;
+    maxPlayers?: number;
+    gameType?: number;
+    raw: string;
+  }
+
+  export function pingHttp(origin: string, options?: { timeout?: number, signal?: AbortSignal }): Promise<HttpAdvertisement>;
+
   export interface ClientOptions {
+    /** Direct HTTP signalling instead of LAN discovery. Requires identity; use 0n as the remote ID. */
+    http?: HttpOptions;
     /** Default: werift. auto prefers the optional native backend when loadable. */
     webrtcBackend?: WebRTCBackend;
     identity?: Identity;
@@ -116,6 +140,7 @@ declare module 'nethernet' {
     connectionId?: bigint;
     credentials?: (string | IceServer)[];
     iceServers?: (string | IceServer)[];
+    /** Offer/answer deadline, including HTTP ICE gathering and key approval (default: 15000). */
     responseTimeoutMs?: number;
     inactivityTimeoutMs?: number;
   }

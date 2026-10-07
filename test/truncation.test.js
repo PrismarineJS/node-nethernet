@@ -7,7 +7,7 @@
 const assert = require('assert')
 const { createSerializer, createDeserializer } = require('../src/transforms/serializer')
 const { encrypt, calculateChecksum } = require('../src/crypto')
-const { createPacketData, processSecurePacket } = require('../src/util')
+const { createPacketData, processSecurePacket } = require('../src/signalling/lan')
 
 // Byte layout of a discovery_message plaintext (little-endian): outer encapsulated lu16 (2) + type lu16 (2) +
 // sender_id lu64 (8) + reserved (8) + recipient_id lu64 (8) + data pstring lu32 (4) + data.
