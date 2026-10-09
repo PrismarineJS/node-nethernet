@@ -7,6 +7,9 @@ const AES_KEY = crypto.createHash('sha256')
   .update(appIdBuffer)
   .digest()
 
+// AES-256-ECB (no IV) is the NetherNet discovery wire format Mojang's real
+// clients use — see "Cryptographic limitation" in README.md. Do not change
+// the cipher mode or prepend an IV here; it breaks interop with real peers.
 function encrypt (data) {
   const cipher = crypto.createCipheriv('aes-256-ecb', AES_KEY, null)
   return Buffer.concat([cipher.update(data), cipher.final()])
