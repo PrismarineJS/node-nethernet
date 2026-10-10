@@ -1,7 +1,7 @@
 /* eslint-env mocha */
 const assert = require('assert')
 const crypto = require('crypto')
-const { extractFingerprints, fingerprintsPayload, detachedES384, buildIdentityAttribute, attachIdentity } = require('../src/identity')
+const { extractFingerprints, fingerprintsPayload, detachedES384, buildIdentityAttribute, attachIdentity } = require('../src/signalling/sdpIdentity')
 
 const SDP = [
   'v=0',
