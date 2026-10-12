@@ -26,6 +26,10 @@ describe('crypto wire format (NetherNet AES-256-ECB compatibility)', function ()
   })
 
   it('round-trips prepareSecurePacket/processSecurePacket with the expected wire layout', function () {
+    // The fake serializer/deserializer below isolate the secure envelope
+    // (checksum + ECB ciphertext) from protodef's actual discovery-packet
+    // schema; this does not assert schema-level interop with real peers,
+    // which this PR does not change.
     const packetData = { name: 'discovery_request', params: { sender_id: 1n, reserved: Buffer.alloc(8) } }
     const serializer = {
       createPacketBuffer: () => Buffer.from('fake-packet-bytes')
